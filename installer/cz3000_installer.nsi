@@ -10,7 +10,9 @@ Unicode True
 ; ---------------------------------------------------------------------------
 !define APP_NAME        "Casio CZ-3000 SysEx"
 !define APP_EXE         "CZ3000SysEx.exe"
-!define APP_VERSION     "1.0.0"
+!ifndef APP_VERSION
+  !define APP_VERSION   "1.0.0"
+!endif
 !define APP_PUBLISHER   "CZSYSEX"
 !define APP_SM_FOLDER   "Casio CZ-3000 SysEx"
 !define UNINSTALL_KEY   "Software\Microsoft\Windows\CurrentVersion\Uninstall\CZ3000SysEx"
