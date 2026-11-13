@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: 'Manual version override (e.g. 1.0.0, or leave empty for auto SemVer)'
+        description: "Manual version override (e.g. 1.0.0, or leave empty for auto SemVer)"
         required: false
-        default: ''
+        default: ""
 
 permissions:
   contents: write
