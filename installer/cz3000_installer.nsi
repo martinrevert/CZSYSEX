@@ -30,6 +30,7 @@ SetCompressor /SOLID lzma
 !define MUI_FINISHPAGE_RUN_TEXT "Ejecutar ${APP_NAME} ahora"
 
 !insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "..\LICENSE"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -59,6 +60,7 @@ Section "Aplicación Principal (Requerido)" SecMain
     SetOutPath "$INSTDIR"
     File "..\build\Release\${APP_EXE}"
     File "..\README.md"
+    File "..\LICENSE"
 
     ; Save install path & write uninstaller
     WriteRegStr HKLM "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
@@ -104,6 +106,7 @@ SectionEnd
 Section "Uninstall"
     Delete "$INSTDIR\${APP_EXE}"
     Delete "$INSTDIR\README.md"
+    Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\imgui.ini"
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
