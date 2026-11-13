@@ -31,13 +31,13 @@ jobs:
         shell: pwsh
         run: |
           $override = "${{ github.event.inputs.version_override }}"
-          if ($override -ne "") {
+          if (-not [string]::IsNullOrWhiteSpace($override)) {
               $version = $override.TrimStart('v')
               Write-Host "Manual version override provided: $version"
           } else {
               git fetch --tags --force
-              $latestTag = git describe --tags --abbrev=0 2>$null
-              if (-not $latestTag) {
+              $latestTag = (git tag -l "v*" --sort=-v:refname | Select-Object -First 1)
+              if ([string]::IsNullOrWhiteSpace($latestTag)) {
                   $version = "1.0.0"
                   Write-Host "No previous tags found. Initializing at v$version"
               } else {
@@ -49,9 +49,9 @@ jobs:
                   $patch = [int]$parts[2]
 
                   $commits = git log "$latestTag..HEAD" --oneline
-                  if (-not $commits) {
+                  if ([string]::IsNullOrWhiteSpace($commits)) {
                       Write-Host "No new commits since $latestTag. Skipping release."
-                      echo "skip_release=true" >> $env:GITHUB_OUTPUT
+                      Add-Content -Path $env:GITHUB_OUTPUT -Value "skip_release=true"
                       exit 0
                   }
 
@@ -72,9 +72,10 @@ jobs:
           $tag = "v$version"
           Write-Host "Target Version: $version"
           Write-Host "Target Tag: $tag"
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
-          echo "skip_release=false" >> $env:GITHUB_OUTPUT
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=$tag"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "skip_release=false"
+          $LASTEXITCODE = 0
 
       - name: Setup MSVC Developer Command Prompt
         if: steps.semver.outputs.skip_release != 'true'
@@ -107,17 +108,7 @@ jobs:
               Write-Error "Installer not found at $installerPath"
               exit 1
           }
-          Write-Host "Installer created: $installerPath"
-
-      - name: Create Git Tag
-        if: steps.semver.outputs.skip_release != 'true'
-        shell: pwsh
-        run: |
-          $tag = "${{ steps.semver.outputs.tag }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a $tag -m "Release $tag"
-          git push origin $tag
+          Write-Host "Installer created successfully: $installerPath"
 
       - name: Publish GitHub Release
         if: steps.semver.outputs.skip_release != 'true'
@@ -129,6 +120,7 @@ jobs:
           $tag = "${{ steps.semver.outputs.tag }}"
           $installer = "dist\CZ3000SysEx_Setup_v$version.exe"
 
+          Write-Host "Publishing release $tag with installer $installer..."
           gh release create $tag $installer `
             --title "Casio CZ-3000 SysEx $tag" `
             --generate-notes
