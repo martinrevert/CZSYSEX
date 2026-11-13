@@ -95,6 +95,10 @@ jobs:
         if: steps.semver.outputs.skip_release != 'true'
         run: .\build\Release\test_sysex.exe
 
+      - name: Install NSIS
+        if: steps.semver.outputs.skip_release != 'true'
+        run: choco install nsis -y
+
       - name: Compile NSIS Installer
         if: steps.semver.outputs.skip_release != 'true'
         shell: pwsh
@@ -102,7 +106,10 @@ jobs:
           if (-not (Test-Path "dist")) { New-Item -ItemType Directory -Path "dist" }
           $version = "${{ steps.semver.outputs.version }}"
           Write-Host "Building NSIS installer for version $version..."
-          & "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=$version installer\cz3000_installer.nsi
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+              $env:PATH += ";C:\Program Files (x86)\NSIS;C:\Program Files\NSIS"
+          }
+          makensis /DAPP_VERSION=$version installer\cz3000_installer.nsi
           $installerPath = "dist\CZ3000SysEx_Setup_v$version.exe"
           if (-not (Test-Path $installerPath)) {
               Write-Error "Installer not found at $installerPath"
