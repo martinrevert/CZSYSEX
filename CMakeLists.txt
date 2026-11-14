@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    add_compile_options(/utf-8)
 endif()
 
 add_compile_definitions(NOMINMAX)
@@ -39,12 +40,16 @@ set(APP_SOURCES
     src/core/cz_sysex.cpp
     src/core/cz_bank.h
     src/core/cz_bank.cpp
+    src/core/cz_i18n.h
+    src/core/cz_i18n.cpp
     src/midi/cz_midi.h
     src/midi/cz_midi.cpp
     src/ui/cz_lcd.h
     src/ui/cz_lcd.cpp
     src/ui/cz_tutorial.h
     src/ui/cz_tutorial.cpp
+    src/ui/cz_manual.h
+    src/ui/cz_manual.cpp
     src/ui/cz_envelope_graph.h
     src/ui/cz_envelope_graph.cpp
     src/ui/cz_librarian.h

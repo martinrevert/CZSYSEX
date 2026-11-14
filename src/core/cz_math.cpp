@@ -157,10 +157,24 @@ void CzMath::memory_from_sysex(uint8_t slot_byte, bool simple, std::string& loca
         slot = 1;
         return;
     }
-    location = "internal";
-    if (simple && slot_byte >= 0x20) {
-        slot_byte -= 0x20;
+
+    if (simple) {
+        if (slot_byte < 0x20) {
+            location = "preset";
+        } else if (slot_byte < 0x40) {
+            location = "internal";
+            slot_byte -= 0x20;
+        } else if (slot_byte < 0x60) {
+            location = "cartridge";
+            slot_byte -= 0x40;
+        } else {
+            location = "internal";
+            slot_byte &= 0x1F;
+        }
+    } else {
+        location = "internal";
     }
+
     int bank_index = (slot_byte >> 3) & 0x07;
     int slot_index = slot_byte & 0x07;
     bank = static_cast<char>('A' + bank_index);
@@ -173,11 +187,18 @@ uint8_t CzMath::memory_to_sysex(const std::string& location, char bank, int slot
     }
     int bank_index = std::clamp(bank - 'A', 0, 7);
     int slot_index = std::clamp(slot - 1, 0, 7);
-    uint8_t res = static_cast<uint8_t>((bank_index << 3) | slot_index);
-    if (simple) {
-        res += 0x20;
+    uint8_t base = static_cast<uint8_t>((bank_index << 3) | slot_index);
+
+    if (location == "preset") {
+        return static_cast<uint8_t>(base & 0x1F);
     }
-    return res;
+    if (location == "cartridge") {
+        return static_cast<uint8_t>(0x40 + (base & 0x1F));
+    }
+    if (simple) {
+        return static_cast<uint8_t>(0x20 + (base & 0x1F));
+    }
+    return base;
 }
 
 char CzMath::hd44780_to_ascii(uint8_t code) {

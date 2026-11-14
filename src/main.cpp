@@ -70,6 +70,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+    // Load system fonts with Latin + Japanese + Chinese glyph support
+    if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
+        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0f, nullptr, io.Fonts->GetGlyphRangesDefault());
+    } else {
+        io.Fonts->AddFontDefault();
+    }
+    {
+        ImFontConfig cjk_cfg;
+        cjk_cfg.MergeMode = true;
+        cjk_cfg.PixelSnapH = true;
+        if (GetFileAttributesA("C:\\Windows\\Fonts\\meiryo.ttc") != INVALID_FILE_ATTRIBUTES) {
+            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\meiryo.ttc", 16.0f, &cjk_cfg, io.Fonts->GetGlyphRangesJapanese());
+        } else if (GetFileAttributesA("C:\\Windows\\Fonts\\msgothic.ttc") != INVALID_FILE_ATTRIBUTES) {
+            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msgothic.ttc", 15.0f, &cjk_cfg, io.Fonts->GetGlyphRangesJapanese());
+        }
+        if (GetFileAttributesA("C:\\Windows\\Fonts\\msyh.ttc") != INVALID_FILE_ATTRIBUTES) {
+            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\msyh.ttc", 16.0f, &cjk_cfg, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+        } else if (GetFileAttributesA("C:\\Windows\\Fonts\\simhei.ttf") != INVALID_FILE_ATTRIBUTES) {
+            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\simhei.ttf", 15.0f, &cjk_cfg, io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+        }
+    }
+
     // Setup Custom Dark Theme with Casio CZ Charcoal & Teal Styling
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "imgui.h"
 
 namespace cz {
@@ -31,10 +32,12 @@ public:
 private:
     CzTutorial();
     void init_topics();
+    const std::unordered_map<std::string, TutorialTopic>& current_topics() const;
 
     bool enabled_ = true; // Enabled by default so users immediately discover it!
     std::string active_guide_topic_ = "intro";
-    std::unordered_map<std::string, TutorialTopic> topics_;
+    std::vector<std::string> topic_order_;
+    std::unordered_map<std::string, TutorialTopic> topics_[8];
 };
 
 } // namespace cz

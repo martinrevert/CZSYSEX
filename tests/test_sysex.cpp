@@ -93,11 +93,56 @@ int main() {
     assert(decoded.line1.dca.end_step == 6);
     std::cout << "  [PASS] SysEx 264-byte CZ-3000 patch roundtrip.\n";
 
-    // 4. Bank test
+    // 4. Bank & Memory slot mapping tests (Official CZ-3000 Manual p. 11 & 31)
+    assert(CzMath::memory_to_sysex("preset", 'A', 1, true) == 0x00);
+    assert(CzMath::memory_to_sysex("preset", 'D', 8, true) == 0x1F);
+    assert(CzMath::memory_to_sysex("internal", 'A', 1, true) == 0x20);
+    assert(CzMath::memory_to_sysex("internal", 'D', 8, true) == 0x3F);
+    assert(CzMath::memory_to_sysex("cartridge", 'A', 1, true) == 0x40);
+    assert(CzMath::memory_to_sysex("recall", 'A', 1, true) == 0x60);
+
+    std::string loc;
+    char mbank = 'A';
+    int mslot = 1;
+    CzMath::memory_from_sysex(0x0B, true, loc, mbank, mslot); // Preset B-4 (FLUTE *)
+    assert(loc == "preset" && mbank == 'B' && mslot == 4);
+    CzMath::memory_from_sysex(0x20, true, loc, mbank, mslot); // Memory A-1
+    assert(loc == "internal" && mbank == 'A' && mslot == 1);
+    CzMath::memory_from_sysex(0x60, true, loc, mbank, mslot); // Compare/Recall
+    assert(loc == "recall");
+    std::cout << "  [PASS] Official CZ-3000 SysEx slot mappings (Preset/Memory/Cartridge/Recall).\n";
+
     CzBank bank;
+    assert(bank.preset_patches.size() == 32);
     assert(bank.patches.size() == 32);
-    assert(bank.get_patch('A', 1).name == "BRASS ENSEMBLE 1");
-    std::cout << "  [PASS] Bank 32-patch initialization.\n";
+    assert(bank.get_patch(BankMode::Preset, 'A', 1).name == "BRASS ENSEMBLE 1");
+    assert(bank.get_patch(BankMode::Preset, 'B', 4).name == "FLUTE");
+    assert(bank.get_patch(BankMode::Preset, 'B', 4).line_select == LineSelect::Line1);
+    assert(bank.get_patch(BankMode::Preset, 'D', 8).name == "TYPHOON SOUND");
+    assert(bank.get_patch('A', 1).name == "*MEMORY* A-1");
+    std::cout << "  [PASS] Dual 64-voice Bank (32 Preset + 32 Memory) initialization.\n";
+
+    // 5. CZ-1 extended SysEx roundtrip (preserves custom patch names in .syx files)
+    CzPatch named_patch = CzPatch::create_default_patch('C', 3, "MI SONIDO CZ3000");
+    auto syx_cz1 = CzSysEx::patch_to_sysex(named_patch, false);
+    assert(syx_cz1.size() == 296);
+    CzPatch decoded_cz1;
+    assert(CzSysEx::sysex_to_patch(syx_cz1, decoded_cz1));
+    assert(decoded_cz1.name == "MI SONIDO CZ3000");
+    assert(decoded_cz1.memory.bank == 'C' && decoded_cz1.memory.slot == 3);
+    std::cout << "  [PASS] CZ-1 296-byte SysEx custom name preservation roundtrip.\n";
+
+    // 6. Preset cache save/load roundtrip
+    bank.preset_patches[3].vibrato.depth = 42;
+    const std::string tmp_cache = "test_presets_cache.syx";
+    assert(bank.save_presets_cache(tmp_cache));
+    CzBank bank2;
+    assert(bank2.load_presets_cache(tmp_cache));
+    assert(bank2.is_presets_cached());
+    assert(bank2.preset_patches[3].name == "WHISTLE");
+    assert(bank2.preset_patches[3].vibrato.depth == 42);
+    std::remove(tmp_cache.c_str());
+    std::cout << "  [PASS] Preset bank cache save/load roundtrip.\n";
 
     std::cout << "All core tests passed successfully!\n";
     return 0;

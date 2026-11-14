@@ -53,10 +53,14 @@ public:
   void set_sysex_callback(SysExCallback cb);
   bool poll_sysex(std::vector<uint8_t> &out_msg);
 
-  // Note audition
+  // Note audition & Program Change
   void send_note_on(uint8_t note, uint8_t velocity = 100, uint8_t channel = 1);
   void send_note_off(uint8_t note, uint8_t channel = 1);
   void send_all_notes_off(uint8_t channel = 1);
+  void send_program_change(uint8_t program, uint8_t channel = 1);
+
+  // Bidirectional SysEx request (SEND REQUEST 1)
+  bool request_patch_dump(uint8_t midi_channel, uint8_t slot_byte);
 
   // Status & Error
   const std::string &get_last_error() const { return last_error_; }
@@ -80,6 +84,7 @@ private:
 
   std::mutex queue_mutex_;
   std::queue<std::vector<uint8_t>> received_sysex_queue_;
+  std::vector<uint8_t> in_sysex_accum_;
   SysExCallback sysex_callback_;
 
   std::string last_error_;

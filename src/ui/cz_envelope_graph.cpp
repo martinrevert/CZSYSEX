@@ -1,5 +1,6 @@
 #include "cz_envelope_graph.h"
 #include "cz_tutorial.h"
+#include "../core/cz_i18n.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -15,23 +16,23 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
     CzLine& line = (active_line == 1) ? patch.line1 : patch.line2;
 
     // Controls toolbar
-    ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "GRAFICO DE ENVOLVENTES (8 PASOS):");
+    ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "%s", tr("env.title"));
     ImGui::SameLine();
 
     // Section selector buttons
-    if (ImGui::RadioButton("DCO (Tono)", active_section_ == 0)) active_section_ = 0;
+    if (ImGui::RadioButton(tr("env.dco"), active_section_ == 0)) active_section_ = 0;
     CzTutorial::instance().tooltip("dco");
     ImGui::SameLine();
 
-    if (ImGui::RadioButton("DCW (Brillo/Filtro PD)", active_section_ == 1)) active_section_ = 1;
+    if (ImGui::RadioButton(tr("env.dcw"), active_section_ == 1)) active_section_ = 1;
     CzTutorial::instance().tooltip("dcw");
     ImGui::SameLine();
 
-    if (ImGui::RadioButton("DCA (Volumen)", active_section_ == 2)) active_section_ = 2;
+    if (ImGui::RadioButton(tr("env.dca"), active_section_ == 2)) active_section_ = 2;
     CzTutorial::instance().tooltip("dca");
     ImGui::SameLine();
 
-    if (ImGui::RadioButton("TODAS (Superpuestas)", active_section_ == 3)) active_section_ = 3;
+    if (ImGui::RadioButton(tr("env.all"), active_section_ == 3)) active_section_ = 3;
     CzTutorial::instance().tooltip("envelope");
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -153,11 +154,11 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
     if (active_env) {
         ImGui::Spacing();
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "EDITANDO: %s", env_name);
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), tr("env.editing"), env_name);
         ImGui::SameLine();
 
         // Step selector buttons 1..8
-        ImGui::Text("  Paso:");
+        ImGui::Text("%s", tr("env.step"));
         ImGui::PushID("EnvSteps");
         for (int s = 1; s <= 8; ++s) {
             ImGui::SameLine();
@@ -181,7 +182,7 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
         int lvl_val = active_env->steps[step_idx].level;
 
         ImGui::SetNextItemWidth(140);
-        if (ImGui::SliderInt("Rate (Velocidad)", &rate_val, 0, 99)) {
+        if (ImGui::SliderInt(tr("env.rate"), &rate_val, 0, 99)) {
             active_env->steps[step_idx].rate = static_cast<uint8_t>(rate_val);
             modified = true;
         }
@@ -189,7 +190,7 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
 
         ImGui::SameLine();
         ImGui::SetNextItemWidth(140);
-        if (ImGui::SliderInt("Level (Nivel)", &lvl_val, 0, 99)) {
+        if (ImGui::SliderInt(tr("env.level"), &lvl_val, 0, 99)) {
             active_env->steps[step_idx].level = static_cast<uint8_t>(lvl_val);
             modified = true;
         }
@@ -198,7 +199,7 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
         ImGui::SameLine();
         // Sustain toggle
         bool is_sus = (active_env->sustain_step == selected_step_);
-        if (ImGui::Checkbox("Sustain (SUS)", &is_sus)) {
+        if (ImGui::Checkbox(tr("env.sustain"), &is_sus)) {
             active_env->sustain_step = is_sus ? selected_step_ : 0;
             modified = true;
         }
@@ -207,7 +208,7 @@ bool CzEnvelopeGraph::render(CzPatch& patch, int active_line, float width, float
         ImGui::SameLine();
         // End toggle
         bool is_end = (active_env->end_step == selected_step_);
-        if (ImGui::Checkbox("End (FIN)", &is_end)) {
+        if (ImGui::Checkbox(tr("env.end"), &is_end)) {
             active_env->end_step = is_end ? selected_step_ : 8;
             modified = true;
         }

@@ -57,19 +57,32 @@ void CzMidiManager::handle_in_sysex(MIDIHDR* hdr) {
     if (!hdr || hdr->dwBytesRecorded == 0) return;
 
     const uint8_t* bytes = reinterpret_cast<const uint8_t*>(hdr->lpData);
-    std::vector<uint8_t> msg(bytes, bytes + hdr->dwBytesRecorded);
-
-    {
-        std::lock_guard<std::mutex> lock(queue_mutex_);
-        received_sysex_queue_.push(msg);
-    }
-
-    if (sysex_callback_) {
-        sysex_callback_(msg);
+    for (DWORD i = 0; i < hdr->dwBytesRecorded; ++i) {
+        uint8_t b = bytes[i];
+        if (b == 0xF0) {
+            in_sysex_accum_.clear();
+            in_sysex_accum_.push_back(b);
+        } else if (!in_sysex_accum_.empty()) {
+            in_sysex_accum_.push_back(b);
+            if (b == 0xF7) {
+                std::vector<uint8_t> complete_msg = std::move(in_sysex_accum_);
+                in_sysex_accum_.clear();
+                {
+                    std::lock_guard<std::mutex> lock(queue_mutex_);
+                    received_sysex_queue_.push(complete_msg);
+                }
+                if (sysex_callback_) {
+                    sysex_callback_(complete_msg);
+                }
+            } else if (in_sysex_accum_.size() > 2048) {
+                in_sysex_accum_.clear();
+            }
+        }
     }
 
     // Re-queue buffer for next message
     if (h_midi_in_) {
+        hdr->dwBytesRecorded = 0;
         midiInAddBuffer(h_midi_in_, hdr, sizeof(MIDIHDR));
     }
 }
@@ -226,6 +239,26 @@ void CzMidiManager::send_all_notes_off(uint8_t channel) {
     // Controller 123: All Notes Off
     DWORD msg = (0xB0 | ch) | (123 << 8) | (0 << 16);
     midiOutShortMsg(h_midi_out_, msg);
+}
+
+void CzMidiManager::send_program_change(uint8_t program, uint8_t channel) {
+    if (!h_midi_out_) return;
+    uint8_t ch = (channel - 1) & 0x0F;
+    DWORD msg = (0xC0 | ch) | (static_cast<DWORD>(program & 0x7F) << 8);
+    midiOutShortMsg(h_midi_out_, msg);
+}
+
+bool CzMidiManager::request_patch_dump(uint8_t midi_channel, uint8_t slot_byte) {
+    // Casio CZ SysEx SEND REQUEST 1 + bundled handshake ACK (kasploosh / Casio CZ spec):
+    // F0 44 00 00 <70+ch> 10 <slot_byte> <70+ch> 31 F7
+    uint8_t chan_byte = static_cast<uint8_t>(0x70 + ((midi_channel - 1) & 0x0F));
+    std::vector<uint8_t> req = {
+        0xF0, 0x44, 0x00, 0x00,
+        chan_byte, 0x10, static_cast<uint8_t>(slot_byte & 0x7F),
+        chan_byte, 0x31,
+        0xF7
+    };
+    return send_sysex(req);
 }
 
 } // namespace cz

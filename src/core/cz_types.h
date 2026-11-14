@@ -93,7 +93,7 @@ struct CzDetune {
 struct CzVibrato {
     int wave  = 1;  // 1: Triangle, 2: SawUp, 3: SawDown, 4: Square
     int delay = 0;  // 0 - 99
-    int rate  = 50; // 0 - 99
+    int rate  = 0;  // 0 - 99 (Manual INITIALIZE default = 00)
     int depth = 0;  // 0 - 99
 };
 
@@ -121,6 +121,7 @@ struct CzPatch {
 
     CzPatch();
     static CzPatch create_default_patch(char bank = 'A', int slot = 1, const std::string& name = "INIT VOICE");
+    void randomize();
 };
 
 } // namespace cz
