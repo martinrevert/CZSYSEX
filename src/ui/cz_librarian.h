@@ -13,6 +13,7 @@ enum class LibrarianAction {
   RequestSingleDump,
   BatchDownloadPresets,
   BatchDownloadMemories,
+  CancelBatch,
   RandomizeMemory
 };
 
