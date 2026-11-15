@@ -4,9 +4,9 @@
 
 🌐 **言語:** [English](README.md) · [Español](README.es.md) · [Italiano](README.it.md) · [Deutsch](README.de.md) · **日本語** · [简体中文](README.zh.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md)
 
-**Casio CZ-3000** シンセサイザー向けのハードウェアアクセラレーション対応（**DirectX 11 + Dear ImGui**）ネイティブ **C++20** デスクトップアプリケーションです（CZ-101 / CZ-1000 / CZ-3000 / CZ-5000 / CZ-1 対応）。
+**Casio CZ-3000** シンセサイザー向けのハードウェアアクセラレーション対応（**DirectX 11 + Dear ImGui**）ネイティブ **C++20** デスクトップアプリケーションです（Casio CZ シリーズ全機種：CZ-101、CZ-1000、CZ-3000、CZ-5000、CZ-1 に対応）。
 
-Python 製プロジェクト `kasploosh` (`czsysexy` / `czcommon`) をベースに移植・拡張しています。
+Python 製プロジェクト `kasploosh` (`czsysexy` / `czcommon`) を移植・拡張しています。
 
 ![Casio CZ-3000 SysEx Librarian & Hardware Synthesizer Editor](docs/screenshot.jpg)
 
@@ -14,33 +14,81 @@ Python 製プロジェクト `kasploosh` (`czsysexy` / `czcommon`) をベース�
 
 ## 🎹 主な機能
 
-1. **Casio CZ-3000 ハードウェアの忠実な再現**:
-   - チャコールグレーの筐体と Casio 伝統のカラーアクセント。
-   - **16×2 HD44780 LCD ディスプレイ**：点滅カーソルと実機同様の編集ページ（`Play` / `Line` / `Vibrato` / `Detune` / `DCO` / `DCW` / `DCA`）。
-   - **LED 付きパネルボタン**と **6オクターブ・バーチャルキーボード（C1〜C7）**によるリアルタイム MIDI 試聴。
+1. **Casio CZ-3000 ハードウェアの忠実なシミュレーション**:
+   - 伝統的な Casio のアクセント（シアン、濃紺、レッド）を備えたチャコールグレーのレトロ筐体。
+   - **16×2 HD44780 LCD ディスプレイ**: 5×7 ドットマトリクス蛍光グリーン表示、点滅カーソル、実機同様の編集ページ（`Play`、`Line`、`Vibrato`、`Detune`、`DCO`、`DCW`、`DCA`）。
+   - **タクタイル Casio パネルボタン＆ステータス LED**:
+     - *Programmer*: `COMPARE/RECALL`、`INIT`、`WRITE`。
+     - *Parameter Select*: `PLAY`、`LINE`、`VIB`、`DETUNE`、`DCO`、`DCW`、`DCA`。
+     - *Voice Lines*: Line 1 と Line 2。
+     - *Data Entry*: `UP`、`DOWN`、`< CUR`、`CUR >`。
+     - *Banks & Voices*: Preset / Memory バンク `A`〜`D`、スロット `1`〜`8`（計64音色）。
+   - **6オクターブ・ライブ試聴キーボード**: リアルタイム MIDI 試聴が可能なインタラクティブ仮想ピアノ（**C1**〜**C7**、73鍵）。
 
 2. **インタラクティブ 8ステップ・エンベロープグラフ**:
-   - **DCO**（音程）・**DCW**（明るさ/PD）・**DCA**（音量）を個別または重ね合わせ（`ALL`）で表示・編集。`SUS` / `END` マーカーと `Rate`/`Level`（0〜99）スライダー搭載。
+   - **DCO**（音程・シアン）、**DCW**（明るさ/PD・アンバー）、**DCA**（音量・ライムグリーン）のカーブを個別または重ね合わせ（`ALL`）でリアルタイム表示・編集。
+   - `SUS`（サスティン）と `END`（エンド）の視覚マーカー。
+   - 全8ステップの `Rate`（0〜99）と `Level`（0〜99）スライダー。
 
 3. **64音色 デュアルバンク・ライブラリアン（32プリセット + 32ユーザーメモリー）**:
-   - **PRESET BANK** と **MEMORY BANK**（`*MEMORY* A-1` 表記、右クリックでカスタム名変更・CZ-1 296バイト `.syx` 保存対応）。
-   - **32音色一括ダウンロード & プリセットキャッシュ**、および選択時の **Auto-Fetch SysEx**。
-   - **ランダマイザー（`ランダム` / `Randomize`）**：現在のメモリー枠の全パラメーターをランダム生成し、編集バッファ（`0x60`）へ即時送信します。
+   - **PRESET BANK（32固定）** と **MEMORY BANK（32ユーザー）** タブ。実機準拠の `*MEMORY* A-1` 表記と右クリックによるカスタム名変更（CZ-1 296バイト `.syx` で保存・復元可能）。
+   - **一括ダウンロード＆プリセットキャッシュ**: ワンクリックで32プリセット（ローカルキャッシュ対応）または32メモリーを一括取得。
+   - **Auto-Fetch SysEx**: プリセットまたはメモリーをクリックした際に実機から自動で SysEx ダンプを要求。
+   - **パッチランダマイザー（`ランダム` / `Randomize`）**: 現在のメモリー枠の全シンセパラメーター（`Line Select`、`Octave`、`Detune`、`Vibrato`、波形、変調、8段階 DCO/DCW/DCA エンベロープ）をランダム生成し、編集バッファ（`0x60`）へ即時送信。
+   - 編集バッファ（`0x60`）への送信、実機メモリーへの書き込み、32音色バンク一括送信、スロット間コピー/ペースト、`.syx` ファイルの読み書きに対応。
 
-4. **8言語対応 UI・PD 解説ガイド・公式取扱説明書ビュー**:
-   - **English**, **Español**, **Italiano**, **Deutsch**, **日本語**, **简体中文**, **Português (Brasil)**, **Français** を即時切り替え（CJK フォント対応）。
-   - **チュートリアルモード**、**フェイズディストーション解説ガイド**、および全9章＋32プリセット表・`INITIALIZE` 表・MIDI インプリメンテーション表を備えた **CZ-3000 公式取扱説明書**を内蔵。
+4. **多言語 UI・インタラクティブ PD ガイド・公式取扱説明書（8言語対応）**:
+   - 実行中の即時言語切り替え（**English**、**Español**、**Italiano**、**Deutsch**、**日本語**、**简体中文**、**Português (Brasil)**、**Français**）、CJK フォント対応。
+   - **チュートリアルモード（`[?] チュートリアル: ON/OFF`）**: ホバーツールチップと、DCO・DCW・DCA・8ステップエンベロープ・波形・リング/ノイズ変調・SysEx を解説する **フェーズディストーション解説ガイド**。
+   - **CZ-3000 公式取扱説明書ビュー**: 全9章のリファレンス（`表示 → CZ-3000 取扱説明書`）、32プリセット一覧表、`INITIALIZE` 初期値表、MIDI インプリメンテーションチャートを8言語で内蔵。
 
-5. **低遅延ネイティブ MIDI エンジン（`winmm.dll`）**:
-   - MIDI In/Out の切り替えと公式 263/264 バイト Casio SysEx 送受信に対応。
+5. **低遅延ネイティブ MIDI エンジン**:
+   - Windows Multimedia API（`winmm.dll`）を使用し、MIDI In/Out ポートのホットスワップおよび公式 263/264 バイト Casio SysEx フレーミングに対応。
 
 ---
 
 ## 🛠️ ビルドと実行
 
-- **動作環境**: Windows 10/11 (x64), Visual Studio 2022 (C++20), CMake 3.20+, Git (`--recursive`), NSIS 3.x (任意)
-- **ビルド & テスト**: `build.bat`（`build\Release\CZ3000SysEx.exe` と `test_sysex.exe` を生成・実行）
-- **インストーラー作成**: `build_installer.bat`
+### 必要環境
+- Windows 10 または 11 (x64)
+- Visual Studio 2022 / Build Tools（C++20 対応）
+- CMake 3.20 以上
+- サブモジュール対応の Git（`git clone --recursive` または `git submodule update --init --recursive`）
+- *(任意)* Windows インストーラー作成用 NSIS 3.x
+
+### クイックビルド＆テスト
+```bat
+build.bat
+```
+`build\Release\CZ3000SysEx.exe` と `build\Release\test_sysex.exe` を生成し、すべてのコアユニットテストを実行します。
+
+### インストーラー作成
+```bat
+build_installer.bat
+```
+
+---
+
+## 📁 プロジェクト構成
+
+```
+CZSYSEX/
+├── docs/                  # スクリーンショット・ドキュメント素材
+├── external/
+│   └── imgui/             # Dear ImGui サブモジュール + Win32/DX11 バックエンド
+├── installer/             # NSIS インストーラースクリプト
+├── src/
+│   ├── core/              # データモデル、数値計算、i18n、SysEx コーデック、バンクキャッシュ
+│   ├── midi/              # Windows Multimedia (WinMM) MIDI ドライバー
+│   ├── ui/                # LCD、チュートリアル、取扱説明書、エンベロープ、ライブラリアン、パネル
+│   └── main.cpp           # Win32 ウィンドウ、DirectX 11、メインループ
+├── tests/
+│   └── test_sysex.cpp     # SysEx・バンク・キャッシュのユニットテスト
+├── AGENTS.md              # 開発者・CI 検証ガイドライン
+├── CMakeLists.txt
+├── build.bat
+└── build_installer.bat
+```
 
 ---
 

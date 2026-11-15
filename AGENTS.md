@@ -25,9 +25,10 @@ cmake --build build --config Release
 - **Enum changes**: When editing an `enum class` (e.g. `LibrarianAction` in `src/ui/cz_librarian.h`, `Language` in `src/core/cz_i18n.h`), grep all usages across `src/` before committing. Never remove an enum member (such as `CancelBatch`) while `.cpp` files (`cz_librarian.cpp`, `cz_panel.cpp`) still reference it.
 - **`CMakeLists.txt`**: Any new `.h`/`.cpp` file under `src/ui/` or `src/midi/` must be added to `APP_SOURCES`. Any new core file under `src/core/` must be added to both `APP_SOURCES` and `TEST_SOURCES`.
 
-## 3. Encoding & Multi-Language Rules
+## 3. Encoding, Multi-Language & Documentation Rules
 - `CMakeLists.txt` enables `/utf-8` on MSVC. Keep all source files saved in **UTF-8** so strings in all 8 supported languages (`En`, `Es`, `It`, `De`, `Ja`, `Zh`, `PtBr`, `Fr`) compile cleanly without codepage warnings or corrupted glyphs.
 - Whenever adding UI strings, add all 8 translations in `src/core/cz_i18n.cpp` (or per-language tables in `cz_tutorial.cpp` / `cz_manual.cpp`).
+- **README Synchronization**: Keep all 8 README files (`README.md` in English as primary, plus `README.es.md`, `README.it.md`, `README.de.md`, `README.ja.md`, `README.zh.md`, `README.pt-BR.md`, `README.fr.md`) structurally identical (same sections, features, build instructions, project tree, and language bar). Whenever features, build steps, or project structure change in `README.md`, update all 7 translated READMEs to match.
 
 ## 4. CI/CD & Versioning Notes
 - **Workflows**:
