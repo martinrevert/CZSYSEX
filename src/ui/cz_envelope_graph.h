@@ -13,6 +13,11 @@ public:
     // Returns true if any parameter was modified by mouse interaction
     bool render(CzPatch& patch, int active_line = 1, float width = 580.0f, float height = 180.0f);
 
+    // Renders the Casio CZ-3000 faceplate silkscreen reference panel (Vibrato waves,
+    // PD Envelope schematic, and Parameter Variable Range table) beside the curves.
+    // Scales uniformly with `scale` so its factory aspect ratio never stretches.
+    void render_casio_spec_plate(const CzPatch& patch, float scale = 1.0f);
+
     void set_active_section(int section) { active_section_ = section; } // 0: DCO, 1: DCW, 2: DCA, 3: ALL
     int get_active_section() const { return active_section_; }
 

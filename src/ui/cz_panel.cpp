@@ -80,6 +80,377 @@ bool CasioButton(const char *label, bool active, bool led = false,
                 return pressed;
 }
 
+ImVec2 EvalCubicBezier(ImVec2 p0, ImVec2 c1, ImVec2 c2, ImVec2 p3, float t) {
+  const float u = 1.0f - t;
+  const float tt = t * t;
+  const float uu = u * u;
+  const float uuu = uu * u;
+  const float ttt = tt * t;
+  return ImVec2(
+      uuu * p0.x + 3.0f * uu * t * c1.x + 3.0f * u * tt * c2.x + ttt * p3.x,
+      uuu * p0.y + 3.0f * uu * t * c1.y + 3.0f * u * tt * c2.y + ttt * p3.y);
+}
+
+struct SvgPathOp {
+  bool cubic;
+  ImVec2 c1;
+  ImVec2 c2;
+  ImVec2 p;
+};
+
+void AppendNormalized(ImVector<ImVec2> &pts, ImVec2 pt) {
+  if (pts.Size > 0) {
+    const float dx = pt.x - pts.back().x;
+    const float dy = pt.y - pts.back().y;
+    if (dx * dx + dy * dy < 1e-4f)
+      return;
+  }
+  pts.push_back(pt);
+}
+
+void TraceSvgSubpathClockwise(ImVec2 start, const SvgPathOp *ops, int op_count,
+                              ImVec2 origin, float scale,
+                              ImVector<ImVec2> &out) {
+  out.resize(0);
+  auto to_screen = [&](ImVec2 p) {
+    return ImVec2(origin.x + p.x * scale, origin.y + p.y * scale);
+  };
+
+  ImVec2 cur = start;
+  AppendNormalized(out, to_screen(cur));
+  for (int i = 0; i < op_count; ++i) {
+    const SvgPathOp &op = ops[i];
+    if (op.cubic) {
+      constexpr int kSteps = 8;
+      for (int s = 1; s <= kSteps; ++s) {
+        const float t = static_cast<float>(s) / static_cast<float>(kSteps);
+        AppendNormalized(out, to_screen(EvalCubicBezier(cur, op.c1, op.c2, op.p, t)));
+      }
+    } else {
+      AppendNormalized(out, to_screen(op.p));
+    }
+    cur = op.p;
+  }
+
+  if (out.Size > 1) {
+    const float dx = out.back().x - out.front().x;
+    const float dy = out.back().y - out.front().y;
+    if (dx * dx + dy * dy < 1e-4f)
+      out.pop_back();
+  }
+
+  // Ensure clockwise winding in screen coordinates (+Y down => shoelace < 0)
+  double area = 0.0;
+  for (int i = 0; i < out.Size; ++i) {
+    const ImVec2 &p0 = out[(i + out.Size - 1) % out.Size];
+    const ImVec2 &p1 = out[i];
+    area += static_cast<double>(p1.x - p0.x) * static_cast<double>(p1.y + p0.y);
+  }
+  if (area > 0.0) {
+    std::reverse(out.Data, out.Data + out.Size);
+  }
+}
+
+void FillAnnulusRingAA(ImDrawList *draw, const ImVec2 *outer, const ImVec2 *inner,
+                       int n, ImU32 col) {
+  if (n < 3 || (col & IM_COL32_A_MASK) == 0)
+    return;
+
+  const ImVec2 uv = ImGui::GetFontTexUvWhitePixel();
+  const ImU32 col_trans = col & ~IM_COL32_A_MASK;
+  const float aa_half = 0.5f;
+
+  draw->PrimReserve(n * 18, n * 4);
+  const unsigned int base_vtx = draw->_VtxCurrentIdx;
+
+  auto unit_normal_oriented = [](ImVec2 prev, ImVec2 next, ImVec2 ref,
+                                 bool same_dir) {
+    const float tx = next.x - prev.x;
+    const float ty = next.y - prev.y;
+    float nx = ty;
+    float ny = -tx;
+    const float len = std::sqrt(nx * nx + ny * ny);
+    if (len > 1e-6f) {
+      nx /= len;
+      ny /= len;
+    } else {
+      const float rlen = std::sqrt(ref.x * ref.x + ref.y * ref.y);
+      nx = (rlen > 1e-6f) ? (ref.x / rlen) : 1.0f;
+      ny = (rlen > 1e-6f) ? (ref.y / rlen) : 0.0f;
+    }
+    const float dot = nx * ref.x + ny * ref.y;
+    if ((same_dir && dot < 0.0f) || (!same_dir && dot > 0.0f)) {
+      nx = -nx;
+      ny = -ny;
+    }
+    return ImVec2(nx, ny);
+  };
+
+  for (int k = 0; k < n; ++k) {
+    const int k_prev = (k + n - 1) % n;
+    const int k_next = (k + 1) % n;
+    const ImVec2 radial(outer[k].x - inner[k].x, outer[k].y - inner[k].y);
+    const ImVec2 n_out = unit_normal_oriented(outer[k_prev], outer[k_next], radial, true);
+    const ImVec2 n_in = unit_normal_oriented(inner[k_prev], inner[k_next], radial, false);
+
+    draw->PrimWriteVtx(ImVec2(outer[k].x + n_out.x * aa_half, outer[k].y + n_out.y * aa_half), uv, col_trans);
+    draw->PrimWriteVtx(ImVec2(outer[k].x - n_out.x * aa_half, outer[k].y - n_out.y * aa_half), uv, col);
+    draw->PrimWriteVtx(ImVec2(inner[k].x - n_in.x * aa_half, inner[k].y - n_in.y * aa_half), uv, col);
+    draw->PrimWriteVtx(ImVec2(inner[k].x + n_in.x * aa_half, inner[k].y + n_in.y * aa_half), uv, col_trans);
+  }
+
+  for (int k = 0; k < n; ++k) {
+    const unsigned int a = base_vtx + static_cast<unsigned int>(k) * 4u;
+    const unsigned int b = base_vtx + static_cast<unsigned int>((k + 1) % n) * 4u;
+    for (unsigned int band = 0; band < 3u; ++band) {
+      const ImDrawIdx i00 = static_cast<ImDrawIdx>(a + band);
+      const ImDrawIdx i10 = static_cast<ImDrawIdx>(b + band);
+      const ImDrawIdx i11 = static_cast<ImDrawIdx>(b + band + 1u);
+      const ImDrawIdx i01 = static_cast<ImDrawIdx>(a + band + 1u);
+      draw->PrimWriteIdx(i00);
+      draw->PrimWriteIdx(i10);
+      draw->PrimWriteIdx(i11);
+      draw->PrimWriteIdx(i00);
+      draw->PrimWriteIdx(i11);
+      draw->PrimWriteIdx(i01);
+    }
+  }
+}
+
+float DrawCasioWordmark(ImDrawList *draw, ImVec2 pos, float h, ImU32 col) {
+  // Exact geometry from Wikimedia Commons File:Casio_logo.svg (viewBox 298 x 56.4)
+  const float scale = h / 56.4f;
+  auto pt = [&](float x, float y) {
+    return ImVec2(pos.x + x * scale, pos.y + y * scale);
+  };
+
+  ImVector<ImVec2> poly;
+
+  // Letter C
+  static const SvgPathOp kC_Ops[] = {
+      {true, {18.00f, 40.51f}, {19.60f, 41.11f}, {21.10f, 41.41f}},
+      {true, {23.60f, 42.01f}, {41.30f, 42.01f}, {44.40f, 41.41f}},
+      {true, {46.60f, 41.11f}, {48.10f, 39.51f}, {48.40f, 37.71f}},
+      {true, {48.40f, 36.81f}, {48.70f, 35.21f}, {48.70f, 34.61f}},
+      {false, {}, {}, {66.40f, 34.61f}},
+      {true, {66.40f, 35.81f}, {66.40f, 38.91f}, {66.10f, 41.71f}},
+      {true, {65.20f, 48.21f}, {61.40f, 53.51f}, {53.40f, 55.41f}},
+      {true, {47.80f, 56.61f}, {20.80f, 56.61f}, {14.60f, 55.41f}},
+      {true, {8.10f, 53.81f}, {2.50f, 49.81f}, {0.90f, 43.01f}},
+      {true, {-0.30f, 36.81f}, {-0.30f, 20.61f}, {0.90f, 13.81f}},
+      {true, {1.80f, 8.81f}, {6.50f, 2.91f}, {14.20f, 1.41f}},
+      {true, {21.30f, 0.21f}, {46.50f, -0.19f}, {53.30f, 1.41f}},
+      {true, {62.30f, 3.61f}, {65.10f, 11.61f}, {65.40f, 14.41f}},
+      {true, {65.70f, 17.51f}, {65.70f, 19.71f}, {65.70f, 20.91f}},
+      {false, {}, {}, {48.00f, 20.91f}},
+      {true, {48.00f, 19.71f}, {48.30f, 16.21f}, {45.20f, 15.31f}},
+      {true, {43.30f, 14.71f}, {26.00f, 14.71f}, {21.60f, 15.01f}},
+      {true, {19.40f, 15.31f}, {18.20f, 16.21f}, {17.90f, 18.41f}},
+      {true, {17.10f, 22.81f}, {17.10f, 33.31f}, {17.70f, 37.41f}},
+  };
+  TraceSvgSubpathClockwise({17.70f, 37.41f}, kC_Ops,
+                           static_cast<int>(sizeof(kC_Ops) / sizeof(kC_Ops[0])),
+                           pos, scale, poly);
+  draw->AddConcavePolyFilled(poly.Data, poly.Size, col);
+
+  // Letter A (3 convex quads matching outer slopes + triangular window)
+  {
+    const ImVec2 a_left[4] = {pt(89.40f, 1.01f), pt(105.01f, 1.01f),
+                              pt(85.00f, 55.01f), pt(66.70f, 55.01f)};
+    const ImVec2 a_right[4] = {pt(99.02f, 1.01f), pt(114.20f, 1.01f),
+                               pt(137.20f, 55.01f), pt(118.90f, 55.01f)};
+    const ImVec2 a_bar[4] = {pt(82.00f, 34.31f), pt(121.50f, 34.31f),
+                             pt(125.00f, 45.41f), pt(78.50f, 45.11f)};
+    draw->AddConvexPolyFilled(a_left, 4, col);
+    draw->AddConvexPolyFilled(a_right, 4, col);
+    draw->AddConvexPolyFilled(a_bar, 4, col);
+  }
+
+  // Letter S
+  static const SvgPathOp kS_Ops[] = {
+      {true, {181.60f, 35.21f}, {182.20f, 37.41f}, {182.20f, 39.31f}},
+      {true, {182.20f, 41.21f}, {181.90f, 43.31f}, {178.80f, 43.61f}},
+      {true, {175.40f, 44.21f}, {163.90f, 44.21f}, {159.60f, 43.61f}},
+      {true, {157.70f, 43.31f}, {155.60f, 43.31f}, {154.90f, 39.91f}},
+      {false, {}, {}, {154.90f, 39.01f}},
+      {false, {}, {}, {137.80f, 39.01f}},
+      {true, {137.80f, 39.31f}, {137.80f, 40.21f}, {138.10f, 41.51f}},
+      {true, {138.70f, 48.61f}, {141.50f, 53.61f}, {149.60f, 55.21f}},
+      {true, {156.10f, 56.41f}, {180.60f, 56.81f}, {188.10f, 55.21f}},
+      {true, {196.80f, 53.31f}, {199.00f, 45.61f}, {199.00f, 38.71f}},
+      {true, {199.00f, 30.91f}, {196.20f, 25.71f}, {189.40f, 23.51f}},
+      {true, {187.50f, 22.91f}, {183.20f, 22.61f}, {181.30f, 22.61f}},
+      {true, {179.70f, 22.61f}, {161.40f, 22.01f}, {157.40f, 21.41f}},
+      {true, {154.90f, 21.11f}, {154.30f, 19.51f}, {154.30f, 17.41f}},
+      {true, {154.30f, 15.21f}, {154.60f, 13.71f}, {157.70f, 13.11f}},
+      {true, {161.40f, 12.51f}, {176.00f, 12.51f}, {177.60f, 13.11f}},
+      {true, {179.50f, 13.71f}, {180.10f, 15.01f}, {180.10f, 16.51f}},
+      {false, {}, {}, {180.10f, 17.71f}},
+      {false, {}, {}, {197.20f, 17.71f}},
+      {true, {197.20f, 16.51f}, {196.90f, 15.51f}, {196.90f, 14.61f}},
+      {true, {196.00f, 6.21f}, {191.30f, 1.61f}, {182.90f, 0.91f}},
+      {true, {174.50f, 0.01f}, {155.30f, 0.31f}, {149.40f, 1.21f}},
+      {true, {143.80f, 2.41f}, {138.20f, 5.91f}, {138.20f, 17.31f}},
+      {true, {138.20f, 26.61f}, {142.50f, 31.31f}, {150.00f, 32.81f}},
+      {true, {152.20f, 33.11f}, {158.40f, 33.41f}, {159.30f, 33.41f}},
+      {true, {161.40f, 33.61f}, {177.60f, 34.31f}, {178.80f, 34.61f}},
+  };
+  TraceSvgSubpathClockwise({178.80f, 34.61f}, kS_Ops,
+                           static_cast<int>(sizeof(kS_Ops) / sizeof(kS_Ops[0])),
+                           pos, scale, poly);
+  draw->AddConcavePolyFilled(poly.Data, poly.Size, col);
+
+  // Letter I
+  draw->AddRectFilled(pt(206.10f, 1.41f), pt(223.20f, 55.11f), col);
+
+  // Letter O (1:1 paired outer/inner 8-curve closed annulus)
+  {
+    static const SvgPathOp kO_Outer[8] = {
+        {true, {278.10f, -0.19f}, {255.40f, -0.59f}, {246.40f, 1.01f}},
+        {true, {239.60f, 2.21f}, {234.30f, 7.21f}, {232.70f, 13.41f}},
+        {true, {231.50f, 20.51f}, {231.50f, 36.41f}, {232.70f, 42.91f}},
+        {true, {233.90f, 48.81f}, {238.90f, 54.11f}, {246.40f, 55.31f}},
+        {true, {254.20f, 56.91f}, {277.10f, 56.51f}, {284.30f, 55.01f}},
+        {true, {292.70f, 53.11f}, {296.10f, 46.91f}, {297.00f, 42.91f}},
+        {true, {298.20f, 36.71f}, {298.20f, 20.91f}, {297.00f, 13.41f}},
+        {true, {295.50f, 6.91f}, {289.90f, 2.31f}, {284.00f, 1.01f}},
+    };
+    static const SvgPathOp kO_Inner[8] = {
+        {true, {275.30f, 13.91f}, {255.50f, 14.21f}, {253.30f, 14.81f}},
+        {true, {251.50f, 15.41f}, {250.20f, 16.61f}, {249.90f, 18.81f}},
+        {true, {249.30f, 23.11f}, {249.30f, 33.11f}, {249.90f, 37.11f}},
+        {true, {250.20f, 39.51f}, {250.80f, 40.81f}, {253.30f, 41.41f}},
+        {true, {256.10f, 42.01f}, {275.70f, 42.01f}, {277.50f, 40.51f}},
+        {true, {279.40f, 39.61f}, {280.00f, 38.71f}, {280.30f, 36.81f}},
+        {true, {281.20f, 32.81f}, {281.20f, 22.51f}, {280.30f, 18.51f}},
+        {true, {280.00f, 16.71f}, {279.40f, 15.41f}, {277.50f, 14.81f}},
+    };
+
+    constexpr int kPerSeg = 8;
+    constexpr int kRingN = 8 * kPerSeg;
+    ImVec2 outer_pts[kRingN];
+    ImVec2 inner_pts[kRingN];
+
+    ImVec2 cur_o(284.00f, 1.01f);
+    ImVec2 cur_i(277.50f, 14.81f);
+    int idx = 0;
+    for (int seg = 0; seg < 8; ++seg) {
+      for (int s = 0; s < kPerSeg; ++s) {
+        const float t = static_cast<float>(s) / static_cast<float>(kPerSeg);
+        const ImVec2 po = EvalCubicBezier(cur_o, kO_Outer[seg].c1,
+                                          kO_Outer[seg].c2, kO_Outer[seg].p, t);
+        const ImVec2 pi = EvalCubicBezier(cur_i, kO_Inner[seg].c1,
+                                          kO_Inner[seg].c2, kO_Inner[seg].p, t);
+        outer_pts[idx] = pt(po.x, po.y);
+        inner_pts[idx] = pt(pi.x, pi.y);
+        ++idx;
+      }
+      cur_o = kO_Outer[seg].p;
+      cur_i = kO_Inner[seg].p;
+    }
+    FillAnnulusRingAA(draw, outer_pts, inner_pts, kRingN, col);
+  }
+
+  return 297.9f * scale;
+}
+
+float DrawCz3000Model(ImDrawList *draw, ImVec2 pos, float h, ImU32 col) {
+  constexpr float kPi = 3.14159265358979323846f;
+  const float sw = (std::max)(1.25f, 0.068f * h);
+  const float gap = 0.16f * h;
+  const float cy = pos.y + 0.5f * h;
+  float x = pos.x;
+
+  // C (hollow concentric arc silhouette with horizontal mouth cuts)
+  {
+    const float w = 0.96f * h;
+    const float r1 = 0.49f * h;
+    const float r2 = 0.21f * h;
+    const float half_mouth = 0.13f * h;
+    const float cx = x + 0.50f * h;
+    const float a1 = std::asin(half_mouth / r1);
+    const float a2 = std::asin(half_mouth / r2);
+    draw->PathArcTo(ImVec2(cx, cy), r1, -a1, a1 - 2.0f * kPi, 24);
+    draw->PathArcTo(ImVec2(cx, cy), r2, a2, 2.0f * kPi - a2, 18);
+    draw->PathStroke(col, sw, ImDrawFlags_Closed);
+    x += w + gap * 0.85f;
+  }
+
+  // Z (hollow inline geometric polygon)
+  {
+    const float w = 0.88f * h;
+    const ImVec2 z_pts[10] = {
+        ImVec2(x + 0.04f * w, pos.y),
+        ImVec2(x + w, pos.y),
+        ImVec2(x + w, pos.y + 0.22f * h),
+        ImVec2(x + 0.34f * w, pos.y + 0.77f * h),
+        ImVec2(x + 0.96f * w, pos.y + 0.77f * h),
+        ImVec2(x + 0.96f * w, pos.y + h),
+        ImVec2(x, pos.y + h),
+        ImVec2(x, pos.y + 0.78f * h),
+        ImVec2(x + 0.66f * w, pos.y + 0.23f * h),
+        ImVec2(x + 0.04f * w, pos.y + 0.23f * h),
+    };
+    draw->AddPolyline(z_pts, 10, col, ImDrawFlags_Closed, sw);
+    x += w + gap;
+  }
+
+  // - (hyphen box outline)
+  {
+    const float w = 0.38f * h;
+    draw->AddRect(ImVec2(x, cy - 0.105f * h), ImVec2(x + w, cy + 0.105f * h),
+                  col, 0.0f, 0, sw);
+    x += w + gap;
+  }
+
+  // 3 (hollow inline symmetric rounded lobes)
+  {
+    const float w = 0.94f * h;
+    const float cx_l = x + 0.30f * h;
+    const float cx_r = x + w - 0.25f * h;
+    const float x_in_r = x + w - 0.32f * h;
+    const float y_u = pos.y + 0.25f * h;
+    const float y_b = pos.y + h - 0.27f * h;
+    const float y_mid_top = pos.y + 0.40f * h;
+    const float y_mid_bot = pos.y + 0.58f * h;
+    const float x_mid_tip = x + 0.34f * w;
+
+    draw->PathArcTo(ImVec2(cx_l, y_u), 0.25f * h, kPi, 1.5f * kPi, 8);
+    draw->PathArcTo(ImVec2(cx_r, y_u), 0.25f * h, -0.5f * kPi, 0.26f * kPi, 10);
+    draw->PathLineTo(ImVec2(x + w - 0.15f * h, pos.y + 0.49f * h));
+    draw->PathArcTo(ImVec2(cx_r - 0.02f * h, y_b), 0.27f * h, -0.26f * kPi,
+                    0.5f * kPi, 10);
+    draw->PathArcTo(ImVec2(cx_l - 0.02f * h, y_b), 0.27f * h, 0.5f * kPi, kPi, 8);
+    // Inner lower cavity return
+    draw->PathArcTo(ImVec2(cx_l - 0.02f * h, y_b), 0.07f * h, kPi, 0.5f * kPi, 6);
+    draw->PathArcTo(ImVec2(x_in_r - 0.06f * h, pos.y + h - 0.26f * h), 0.06f * h,
+                    0.5f * kPi, 0.0f, 6);
+    draw->PathArcTo(ImVec2(x_in_r - 0.06f * h, y_mid_bot + 0.06f * h), 0.06f * h,
+                    0.0f, -0.5f * kPi, 6);
+    draw->PathLineTo(ImVec2(x_mid_tip, y_mid_bot));
+    // Inner waist tip + upper cavity return
+    draw->PathLineTo(ImVec2(x_mid_tip, y_mid_top));
+    draw->PathArcTo(ImVec2(x_in_r - 0.06f * h, y_mid_top - 0.06f * h), 0.06f * h,
+                    0.5f * kPi, 0.0f, 6);
+    draw->PathArcTo(ImVec2(x_in_r - 0.06f * h, pos.y + 0.26f * h), 0.06f * h,
+                    0.0f, -0.5f * kPi, 6);
+    draw->PathArcTo(ImVec2(cx_l, y_u), 0.05f * h, -0.5f * kPi, -kPi, 6);
+    draw->PathStroke(col, sw, ImDrawFlags_Closed);
+    x += w + gap;
+  }
+
+  // 0 0 0 (iconic concentric double-ring circles)
+  for (int i = 0; i < 3; ++i) {
+    const float w0 = 0.96f * h;
+    const ImVec2 center(x + 0.5f * w0, cy);
+    draw->AddCircle(center, 0.49f * h, col, 32, sw);
+    draw->AddCircle(center, 0.21f * h, col, 24, sw);
+    x += w0 + ((i < 2) ? gap : 0.0f);
+  }
+
+  return x - pos.x;
+}
+
 } // anonymous namespace
 
 CzPanel::CzPanel(CzBank &bank, CzMidiManager &midi)
@@ -333,7 +704,7 @@ void CzPanel::load_sysex_file_dialog() {
   ofn.lpstrFilter = "Casio CZ SysEx (*.syx)\0*.syx\0All Files (*.*)\0*.*\0";
   ofn.lpstrFile = file_buf;
   ofn.nMaxFile = MAX_PATH;
-  ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+  ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
   ofn.lpstrDefExt = "syx";
 
   if (!GetOpenFileNameA(&ofn)) {
@@ -347,27 +718,86 @@ void CzPanel::load_sysex_file_dialog() {
     return;
   }
 
+  // Extract file stem (e.g. "1SOUNDS" from "C:\...\1SOUNDS.SYX") for clearer naming of simple SysEx patches
+  std::string path_str(file_buf);
+  size_t slash_pos = path_str.find_last_of("\\/");
+  std::string file_stem = (slash_pos == std::string::npos) ? path_str : path_str.substr(slash_pos + 1);
+  size_t dot_pos = file_stem.find_last_of('.');
+  if (dot_pos != std::string::npos) {
+    file_stem = file_stem.substr(0, dot_pos);
+  }
+  if (file_stem.length() > 11) {
+    file_stem = file_stem.substr(0, 11);
+  }
+
+  // Prevent Auto-Fetch from requesting old internal synth memory and overwriting the loaded .syx patches,
+  // and enable Live Audition Sync (0x60) so clicking any loaded patch plays it on the connected CZ-3000.
+  auto_fetch_on_select_ = false;
+  live_audition_sync_ = true;
+
   if (loaded.size() == 1) {
     CzPatch p = loaded[0];
     auto [b, s] = CzBank::get_bank_slot(active_patch_index_);
     p.memory.location = "internal";
     p.memory.bank = b;
     p.memory.slot = s;
+    bool is_empty = (p.name.rfind("[EMPTY]", 0) == 0);
+    if (!is_empty && p.simple_sysex && !file_stem.empty()) {
+      p.name = file_stem + " " + std::string(1, b) + "-" + std::to_string(s);
+    }
     bank_.patches[active_patch_index_] = p;
     select_patch(BankMode::Memory, active_patch_index_, true);
     send_edit_to_recall_buffer();
-    librarian_.set_status_message("Parche .syx cargado en MEMORY " + std::string(1, b) + "-" + std::to_string(s) + ".");
+    librarian_.set_status_message("Parche .syx cargado en MEMORY " + std::string(1, b) + "-" + std::to_string(s) + " (Sync 0x60 activo).");
   } else {
-    size_t count = (std::min)(loaded.size(), CzBank::BANK_SIZE);
+    // Support 16-patch CZ-101/CZ-1000 banks: load into Banks C & D (16..31) when Bank C or D is currently active,
+    // or into Banks A & B (0..15) when Bank A or B is active.
+    size_t start_idx = (loaded.size() <= 16 && active_patch_index_ >= 16) ? 16 : 0;
+    size_t count = (std::min)(loaded.size(), CzBank::BANK_SIZE - start_idx);
+    size_t active_count = 0;
+    size_t empty_count = 0;
+    size_t first_active_idx = start_idx;
+    bool found_active = false;
+
     for (size_t i = 0; i < count; ++i) {
-      auto [b, s] = CzBank::get_bank_slot(i);
-      bank_.patches[i] = loaded[i];
-      bank_.patches[i].memory.location = "internal";
-      bank_.patches[i].memory.bank = b;
-      bank_.patches[i].memory.slot = s;
+      size_t target_idx = start_idx + i;
+      auto [b, s] = CzBank::get_bank_slot(target_idx);
+      bool is_empty = (loaded[i].name.rfind("[EMPTY]", 0) == 0);
+      if (is_empty) {
+        ++empty_count;
+        // If target slot is still default *MEMORY* or already [EMPTY], tag it as [EMPTY] in the Librarian
+        // without overwriting existing user/loaded patches from other banks.
+        const std::string& cur_name = bank_.patches[target_idx].name;
+        if (cur_name.rfind("*MEMORY*", 0) == 0 || cur_name.rfind("[EMPTY]", 0) == 0) {
+          bank_.patches[target_idx].name = "[EMPTY]";
+        }
+        continue;
+      }
+
+      if (!found_active) {
+        first_active_idx = target_idx;
+        found_active = true;
+      }
+      ++active_count;
+      bank_.patches[target_idx] = loaded[i];
+      bank_.patches[target_idx].memory.location = "internal";
+      bank_.patches[target_idx].memory.bank = b;
+      bank_.patches[target_idx].memory.slot = s;
+      if (bank_.patches[target_idx].simple_sysex && !file_stem.empty()) {
+        bank_.patches[target_idx].name = file_stem + " " + std::string(1, b) + "-" + std::to_string(s);
+      }
     }
-    select_patch(BankMode::Memory, 0, true);
-    librarian_.set_status_message("Banco de " + std::to_string(count) + " parches cargado en MEMORY BANK.");
+    select_patch(BankMode::Memory, first_active_idx, true);
+    send_edit_to_recall_buffer();
+    std::string empty_note = (empty_count > 0)
+        ? (" (" + std::to_string(empty_count) + " vacíos [EMPTY] omitidos)")
+        : "";
+    if (loaded.size() <= 16) {
+      std::string range_str = (start_idx == 16) ? "Bancos C-D" : "Bancos A-B";
+      librarian_.set_status_message("Cargados " + std::to_string(active_count) + " parches en " + range_str + empty_note + " [Sync 0x60 ON].");
+    } else {
+      librarian_.set_status_message("Cargados " + std::to_string(active_count) + " parches en MEMORY BANK" + empty_note + " [Sync 0x60 ON].");
+    }
   }
 }
 
@@ -573,12 +1003,35 @@ void CzPanel::render() {
   process_incoming_sysex();
   process_batch_dump();
   render_header_bar();
+
+  // Reserve space at the bottom so the MIDI / SysEx status bar is always visible
+  float footer_h = ImGui::GetTextLineHeightWithSpacing() + 14.0f;
+  ImGui::BeginChild("MainScrollArea", ImVec2(0, -footer_h), false);
   render_hardware_chassis();
 
   if (show_envelope_graph_) {
     ImGui::Spacing();
     ImGui::Separator();
-    if (envelope_graph_.render(edit_patch_, current_line_)) {
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    const float base_plate_w = 590.0f;
+    const float base_plate_h = 280.0f;
+    const float gap = 15.0f;
+    bool side_by_side = (avail.x >= 1080.0f);
+
+    float plate_scale = 1.0f;
+    if (side_by_side) {
+      float max_sw = (avail.x - 600.0f - gap) / base_plate_w;
+      float max_sh = (avail.y > base_plate_h) ? (avail.y / base_plate_h) : 1.0f;
+      plate_scale = std::clamp((std::min)(max_sw, max_sh), 1.0f, 1.45f);
+    }
+    float plate_w = std::floor(base_plate_w * plate_scale);
+    float plate_h = std::floor(base_plate_h * plate_scale);
+    float left_w = side_by_side ? (avail.x - plate_w - gap) : avail.x;
+    float graph_h = side_by_side ? (std::max)(174.0f, plate_h - 90.0f) : 180.0f;
+
+    ImGui::BeginGroup();
+    if (envelope_graph_.render(edit_patch_, current_line_, left_w, graph_h)) {
       compare_active_ = true;
       if (active_bank_mode_ == BankMode::Memory) {
         bank_.patches[active_patch_index_] = edit_patch_;
@@ -586,7 +1039,18 @@ void CzPanel::render() {
       send_edit_to_recall_buffer();
       update_lcd();
     }
+    ImGui::EndGroup();
+
+    if (side_by_side) {
+      ImGui::SameLine(0.0f, gap);
+      envelope_graph_.render_casio_spec_plate(edit_patch_, plate_scale);
+    } else {
+      ImGui::Spacing();
+      float narrow_scale = std::clamp(avail.x / base_plate_w, 0.80f, 1.0f);
+      envelope_graph_.render_casio_spec_plate(edit_patch_, narrow_scale);
+    }
   }
+  ImGui::EndChild();
 
   render_bottom_toolbar();
 
@@ -720,7 +1184,7 @@ void CzPanel::render_hardware_chassis() {
   ImDrawList *draw = ImGui::GetWindowDrawList();
   ImVec2 panel_pos = ImGui::GetCursorScreenPos();
   float panel_w = ImGui::GetContentRegionAvail().x;
-  float panel_h = 365.0f;
+  float panel_h = 368.0f;
 
   // Outer dark chassis body
   draw->AddRectFilled(panel_pos,
@@ -730,7 +1194,7 @@ void CzPanel::render_hardware_chassis() {
                 IM_COL32(50, 56, 64, 255), 6.0f, 0, 2.0f);
 
   // Decorative Casio colored racing stripes (Cyan, Dark Blue, Red)
-  float stripe_y = panel_pos.y + 36.0f;
+  float stripe_y = panel_pos.y + 42.0f;
   draw->AddLine(ImVec2(panel_pos.x + 10, stripe_y),
                 ImVec2(panel_pos.x + panel_w - 10, stripe_y),
                 IM_COL32(0, 175, 195, 255), 2.0f);
@@ -741,17 +1205,30 @@ void CzPanel::render_hardware_chassis() {
                 ImVec2(panel_pos.x + panel_w - 10, stripe_y + 6),
                 IM_COL32(220, 45, 45, 255), 1.5f);
 
-  // Header branding
-  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 16, panel_pos.y + 10));
-  ImGui::TextColored(ImVec4(0.95f, 0.95f, 0.95f, 1.0f), "CASIO");
-  ImGui::SameLine();
-  ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.95f, 1.0f), "CZ-3000");
-  ImGui::SameLine();
-  ImGui::TextColored(ImVec4(0.6f, 0.65f, 0.7f, 1.0f),
-                     "PHASE DISTORTION SYNTHESIZER / SYSEX LIBRARIAN");
+  // Header branding: silkscreen CASIO wordmark + hollow CZ-3000 model at top-left
+  const ImVec2 logo_pos(panel_pos.x + 16.0f, panel_pos.y + 10.0f);
+  const float logo_h = 22.0f;
+  const float model_h = 20.0f;
+  const float casio_w = DrawCasioWordmark(draw, logo_pos, logo_h,
+                                          IM_COL32(238, 240, 236, 255));
+  const float model_x = logo_pos.x + casio_w + 15.0f;
+  const float model_y = logo_pos.y + (logo_h - model_h) * 0.5f;
+  const float model_w = DrawCz3000Model(draw, ImVec2(model_x, model_y), model_h,
+                                        IM_COL32(236, 214, 150, 255));
+
+  const float sub_x = model_x + model_w + 16.0f;
+  const char *subtitle = "PHASE DISTORTION SYNTHESIZER / SYSEX LIBRARIAN";
+  const ImVec2 sub_sz = ImGui::CalcTextSize(subtitle);
+  if (sub_x + sub_sz.x < panel_pos.x + panel_w - 16.0f) {
+    draw->AddLine(ImVec2(sub_x - 8.0f, logo_pos.y + 3.0f),
+                  ImVec2(sub_x - 8.0f, logo_pos.y + logo_h - 3.0f),
+                  IM_COL32(85, 95, 108, 255), 1.0f);
+    draw->AddText(ImVec2(sub_x, logo_pos.y + (logo_h - sub_sz.y) * 0.5f),
+                  IM_COL32(155, 165, 175, 255), subtitle);
+  }
 
   // Internal grid layout (Left: Hardware Controls)
-  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 15, panel_pos.y + 50));
+  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 15, panel_pos.y + 56));
 
   // Section 1: Programmer & Master Controls (Left)
   ImGui::BeginGroup();
@@ -773,22 +1250,26 @@ void CzPanel::render_hardware_chassis() {
   ImGui::EndGroup();
 
   // Section 4: Parameter & Bank Selector Buttons (Lower deck)
-  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 15, panel_pos.y + 170));
+  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 45, panel_pos.y + 176));
+  ImGui::BeginGroup();
   render_parameter_buttons();
+  ImGui::EndGroup();
 
-  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 15, panel_pos.y + 255));
+  ImGui::SetCursorScreenPos(ImVec2(panel_pos.x + 15, panel_pos.y + 261));
+  ImGui::BeginGroup();
   render_bank_number_buttons();
+  ImGui::EndGroup();
 
   // Right Side: Integrated Bank Librarian (to the right of buttons & display)
   if (show_librarian_ && panel_w > 780.0f) {
     float div_x = panel_pos.x + 605.0f;
-    draw->AddLine(ImVec2(div_x, panel_pos.y + 48.0f),
+    draw->AddLine(ImVec2(div_x, panel_pos.y + 54.0f),
                   ImVec2(div_x, panel_pos.y + panel_h - 10.0f),
                   IM_COL32(60, 68, 78, 255), 1.5f);
 
     float right_w = panel_w - 625.0f;
-    ImGui::SetCursorScreenPos(ImVec2(div_x + 10.0f, panel_pos.y + 48.0f));
-    ImGui::BeginChild("RightLibrarian", ImVec2(right_w, panel_h - 58.0f), false);
+    ImGui::SetCursorScreenPos(ImVec2(div_x + 10.0f, panel_pos.y + 54.0f));
+    ImGui::BeginChild("RightLibrarian", ImVec2(right_w, panel_h - 64.0f), false);
     LibrarianAction lib_act = librarian_.render(
         active_bank_mode_, active_patch_index_, midi_channel_,
         live_audition_sync_, auto_fetch_on_select_, batch_active_);
@@ -1010,46 +1491,55 @@ void CzPanel::render_bank_number_buttons() {
   char cur_b = edit_patch_.memory.bank;
   int cur_s = edit_patch_.memory.slot;
 
+  const float btn_w = 32.0f;
+  const float btn_h = 28.0f;
+  const float btn_gap = 4.0f;
+  const float pitch = btn_w + btn_gap;
+  const float base_x = ImGui::GetCursorScreenPos().x;
+  const float row1_y = ImGui::GetCursorScreenPos().y;
+  const float preset_x = base_x + 64.0f;
+  const float mem_label_x = preset_x + 4.0f * pitch + 14.0f;
+  const float mem_x = mem_label_x + 68.0f;
+
   // Row 1: PRESET BANK (A..D) and MEMORY BANK (A..D)
+  ImGui::SetCursorScreenPos(ImVec2(base_x, row1_y + 5.0f));
   ImGui::TextColored(ImVec4(0.35f, 0.9f, 0.65f, 1.0f), "PRESET:");
-  ImGui::SameLine(0, 5);
   for (int b = 0; b < 4; ++b) {
+    ImGui::SetCursorScreenPos(ImVec2(preset_x + b * pitch, row1_y));
     char label[24];
     snprintf(label, sizeof(label), "%c##presetbank", banks[b]);
     bool active = (active_bank_mode_ == BankMode::Preset && cur_b == banks[b]);
-    if (CasioButton(label, active, true, ImVec2(28, 28),
+    if (CasioButton(label, active, true, ImVec2(btn_w, btn_h),
                     IM_COL32(40, 230, 140, 255))) {
       select_patch(BankMode::Preset, CzBank::get_index(banks[b], cur_s), true);
     }
-    ImGui::SameLine(0, 3);
   }
 
-  ImGui::SameLine(0, 12);
+  ImGui::SetCursorScreenPos(ImVec2(mem_label_x, row1_y + 5.0f));
   ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "MEMORY:");
-  ImGui::SameLine(0, 5);
   for (int b = 0; b < 4; ++b) {
+    ImGui::SetCursorScreenPos(ImVec2(mem_x + b * pitch, row1_y));
     char label[24];
     snprintf(label, sizeof(label), "%c##membank", banks[b]);
     bool active = (active_bank_mode_ == BankMode::Memory && cur_b == banks[b]);
-    if (CasioButton(label, active, true, ImVec2(28, 28),
+    if (CasioButton(label, active, true, ImVec2(btn_w, btn_h),
                     IM_COL32(255, 160, 40, 255))) {
       select_patch(BankMode::Memory, CzBank::get_index(banks[b], cur_s), true);
     }
-    if (b < 3) ImGui::SameLine(0, 3);
   }
 
-  // Row 2: VOICE SELECTORS (1..8)
-  ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "VOICE: ");
-  ImGui::SameLine(0, 5);
+  // Row 2: VOICE SELECTORS (1..4 aligned under PRESET, 5..8 aligned under MEMORY)
+  const float row2_y = row1_y + btn_h + 6.0f;
+  ImGui::SetCursorScreenPos(ImVec2(base_x, row2_y + 5.0f));
+  ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "VOICE:");
   for (int s = 1; s <= 8; ++s) {
+    float x = (s <= 4) ? (preset_x + (s - 1) * pitch) : (mem_x + (s - 5) * pitch);
+    ImGui::SetCursorScreenPos(ImVec2(x, row2_y));
     char label[16];
     snprintf(label, sizeof(label), "%d##num", s);
-    if (CasioButton(label, cur_s == s, true, ImVec2(32, 28),
+    if (CasioButton(label, cur_s == s, true, ImVec2(btn_w, btn_h),
                     IM_COL32(255, 60, 60, 255))) {
       select_patch(active_bank_mode_, CzBank::get_index(cur_b, s), true);
-    }
-    if (s < 8) {
-      ImGui::SameLine(0, 4);
     }
   }
   ImGui::PopID();

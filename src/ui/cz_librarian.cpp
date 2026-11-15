@@ -242,11 +242,18 @@ LibrarianAction CzLibrarian::render(BankMode& active_mode, size_t& active_patch_
             snprintf(slot_label, sizeof(slot_label), "%c-%d: %s", bank_char, s, p.name.c_str());
         }
 
+        bool is_empty_slot = (!is_preset && p.name.rfind("[EMPTY]", 0) == 0);
+        if (is_empty_slot) {
+            ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(125, 132, 140, 255));
+        }
         bool is_selected = (active_patch_index == idx);
         if (ImGui::Selectable(slot_label, is_selected)) {
             active_patch_index = idx;
             last_synced_patch_index_ = idx;
             action = LibrarianAction::PatchSelected;
+        }
+        if (is_empty_slot) {
+            ImGui::PopStyleColor();
         }
 
         // Right click context menu to rename (Memory mode only)

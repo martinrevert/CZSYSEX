@@ -144,6 +144,48 @@ int main() {
     std::remove(tmp_cache.c_str());
     std::cout << "  [PASS] Preset bank cache save/load roundtrip.\n";
 
+    // 7. Hardware Ring (0x20 / mod=4) & Noise (0x18 / mod=3) MFW modulation bits and envelope SUS > END clamping
+    CzPatch ring_patch = CzPatch::create_default_patch('A', 1, "RING TEST");
+    ring_patch.line1.modulation = 1; // Ring
+    auto syx_ring = CzSysEx::patch_to_sysex(ring_patch, true);
+    assert(syx_ring.size() == 264);
+    uint8_t ring_b18 = CzMath::unpack_casio(syx_ring[7 + 18 * 2], syx_ring[7 + 18 * 2 + 1]);
+    assert(((ring_b18 >> 3) & 0x07) == 4); // Hardware bit 0x20 (4) for Ring
+    CzPatch decoded_ring;
+    assert(CzSysEx::sysex_to_patch(syx_ring, decoded_ring));
+    assert(decoded_ring.line1.modulation == 1);
+
+    CzPatch noise_patch = CzPatch::create_default_patch('A', 2, "NOISE TEST");
+    noise_patch.line1.modulation = 2; // Noise
+    auto syx_noise = CzSysEx::patch_to_sysex(noise_patch, true);
+    uint8_t noise_b18 = CzMath::unpack_casio(syx_noise[7 + 18 * 2], syx_noise[7 + 18 * 2 + 1]);
+    assert(((noise_b18 >> 3) & 0x07) == 3); // Hardware bit 0x18 (3) for Noise
+    // Inject a legacy sustain bit (0x80) past end_step on L1 DCA step 7 while end_step = 2
+    auto [e_low, e_high] = CzMath::pack_casio(1); // end_step = 2 (stored as 1)
+    syx_noise[7 + 20 * 2] = e_low;
+    syx_noise[7 + 20 * 2 + 1] = e_high;
+    int s7_lvl_idx = 21 + 6 * 2 + 1;
+    uint8_t s7_lvl = CzMath::unpack_casio(syx_noise[7 + s7_lvl_idx * 2], syx_noise[7 + s7_lvl_idx * 2 + 1]);
+    auto [s7_low, s7_high] = CzMath::pack_casio(s7_lvl | 0x80);
+    syx_noise[7 + s7_lvl_idx * 2] = s7_low;
+    syx_noise[7 + s7_lvl_idx * 2 + 1] = s7_high;
+    CzPatch decoded_noise;
+    assert(CzSysEx::sysex_to_patch(syx_noise, decoded_noise));
+    assert(decoded_noise.line1.modulation == 2);
+    assert(decoded_noise.line1.dca.end_step == 2);
+    assert(decoded_noise.line1.dca.sustain_step == 0); // Sustain past end_step ignored
+    std::cout << "  [PASS] Hardware Ring/Noise MFW modulation bits and legacy envelope SUS clamping.\n";
+
+    // 8. Empty / all-zero SysEx slot detection (e.g. trailing blank slots in partial 16-slot CZ-101 banks like ANIMAL.SYX)
+    std::vector<uint8_t> zero_syx(264, 0x00);
+    zero_syx[0] = 0xF0; zero_syx[1] = 0x44; zero_syx[2] = 0x00; zero_syx[3] = 0x00;
+    zero_syx[4] = 0x70; zero_syx[5] = 0x20; zero_syx[6] = 0x24;
+    zero_syx[263] = 0xF7;
+    CzPatch decoded_empty;
+    assert(CzSysEx::sysex_to_patch(zero_syx, decoded_empty));
+    assert(decoded_empty.name == "[EMPTY]");
+    std::cout << "  [PASS] Blank/all-zero SysEx slot [EMPTY] detection.\n";
+
     std::cout << "All core tests passed successfully!\n";
     return 0;
 }

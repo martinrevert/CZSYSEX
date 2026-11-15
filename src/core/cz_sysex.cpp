@@ -29,10 +29,8 @@ void encode_envelope(const CzEnvelope& env, const std::string& type, std::vector
         }
 
         // Downward slope bit on rate
-        if (i > 0) {
-            if (l_dec < env.steps[i - 1].level) {
-                r_hex |= 0x80;
-            }
+        if ((i == 0 && l_dec == 0) || (i > 0 && l_dec < env.steps[i - 1].level)) {
+            r_hex |= 0x80;
         }
 
         // Sustain step bit on level
@@ -47,11 +45,12 @@ void encode_envelope(const CzEnvelope& env, const std::string& type, std::vector
 
 void decode_envelope(const uint8_t* pxx, const std::string& type, CzEnvelope& env) {
     env.sustain_step = 0; // default none
+    int max_step = (env.end_step >= 1 && env.end_step <= 8) ? env.end_step : 8;
     for (int i = 0; i < 8; ++i) {
         uint8_t r_byte = pxx[i * 2];
         uint8_t l_byte = pxx[i * 2 + 1];
 
-        if (l_byte & 0x80) {
+        if ((l_byte & 0x80) && (i + 1) <= max_step) {
             env.sustain_step = i + 1;
         }
 
@@ -134,13 +133,20 @@ std::vector<uint8_t> CzSysEx::patch_to_sysex(const CzPatch& patch, bool simple, 
     unpacked.push_back(pvdv.second);
 
     // Line 1: MFW (2 bytes)
+    // Hardware MFW modulation bits [5:3]: 0 = OFF, 4 (0b100, 0x20) = RING, 3 (0b011, 0x18) = NOISE
     bool mute_line_1 = (patch.line_select == LineSelect::Line1Prime || patch.line_select == LineSelect::Line2Prime);
+    uint16_t hw_mod = 0;
+    if (patch.line1.modulation == 1 || patch.line1.modulation == 4) {
+        hw_mod = 4; // Ring
+    } else if (patch.line1.modulation == 2 || patch.line1.modulation == 3 || patch.line1.modulation == 7) {
+        hw_mod = 3; // Noise
+    }
     uint16_t mfw = 0;
     mfw |= (static_cast<uint16_t>(patch.line1.wave_1 & 0x07) << 13);
     mfw |= (static_cast<uint16_t>(patch.line1.wave_2 & 0x07) << 10);
     if (patch.line1.use_wave_2) mfw |= (1 << 9);
     mfw |= (static_cast<uint16_t>(patch.line1.window & 0x07) << 6);
-    mfw |= (static_cast<uint16_t>(patch.line1.modulation & 0x07) << 3);
+    mfw |= (hw_mod << 3);
     if (mute_line_1) mfw |= (1 << 2);
 
     unpacked.push_back(static_cast<uint8_t>(mfw >> 8));
@@ -322,7 +328,14 @@ bool CzSysEx::sysex_to_patch(const std::vector<uint8_t>& syx_data, CzPatch& out_
     out_patch.line1.wave_2 = (mfw >> 10) & 0x07;
     out_patch.line1.use_wave_2 = ((mfw >> 9) & 0x01) != 0;
     out_patch.line1.window = (mfw >> 6) & 0x07;
-    out_patch.line1.modulation = (mfw >> 3) & 0x07;
+    int raw_mod = (mfw >> 3) & 0x07;
+    if (raw_mod == 4 || raw_mod == 1) {
+        out_patch.line1.modulation = 1; // Ring
+    } else if (raw_mod == 3 || raw_mod == 7 || raw_mod == 2) {
+        out_patch.line1.modulation = 2; // Noise
+    } else {
+        out_patch.line1.modulation = 0; // Off
+    }
 
     bool mute_line_1 = ((mfw >> 2) & 0x01) != 0;
     if (mute_line_1) {
@@ -390,6 +403,32 @@ bool CzSysEx::sysex_to_patch(const std::vector<uint8_t>& syx_data, CzPatch& out_
     out_patch.line2.dco.velocity = pspl >> 4;
     decode_envelope(&unpacked[115], "dco", out_patch.line2.dco);
 
+    // Detect all-zero / completely silent empty SysEx slots (common in partial 16-slot CZ-101 dumps like ANIMAL.SYX)
+    bool all_zero_payload = true;
+    for (size_t i = 3; i < (std::min)(unpacked.size(), static_cast<size_t>(131)); ++i) {
+        if (unpacked[i] != 0) {
+            all_zero_payload = false;
+            break;
+        }
+    }
+    int max_l1_dca = 0;
+    for (int i = 0; i < std::clamp(out_patch.line1.dca.end_step, 1, 8); ++i) {
+        max_l1_dca = (std::max)(max_l1_dca, static_cast<int>(out_patch.line1.dca.steps[i].level));
+    }
+    int max_l2_dca = 0;
+    for (int i = 0; i < std::clamp(out_patch.line2.dca.end_step, 1, 8); ++i) {
+        max_l2_dca = (std::max)(max_l2_dca, static_cast<int>(out_patch.line2.dca.steps[i].level));
+    }
+    bool uses_l1 = (out_patch.line_select == LineSelect::Line1 ||
+                    out_patch.line_select == LineSelect::Line1_Plus_1Prime ||
+                    out_patch.line_select == LineSelect::Line1_Plus_2Prime ||
+                    out_patch.line_select == LineSelect::Line1Prime);
+    bool uses_l2 = (out_patch.line_select == LineSelect::Line2 ||
+                    out_patch.line_select == LineSelect::Line1_Plus_2Prime ||
+                    out_patch.line_select == LineSelect::Line2Prime);
+    bool silent_dca = ((uses_l1 ? max_l1_dca : 0) == 0) && ((uses_l2 ? max_l2_dca : 0) == 0);
+    bool is_empty_slot = all_zero_payload || silent_dca;
+
     // Name (if advanced / 296 bytes)
     if (!simple && unpacked.size() >= 147) {
         std::string name_str;
@@ -401,7 +440,9 @@ bool CzSysEx::sysex_to_patch(const std::vector<uint8_t>& syx_data, CzPatch& out_
         if (last != std::string::npos) {
             name_str = name_str.substr(0, last + 1);
         }
-        out_patch.name = name_str;
+        out_patch.name = is_empty_slot ? ("[EMPTY] " + name_str) : name_str;
+    } else if (is_empty_slot) {
+        out_patch.name = "[EMPTY]";
     } else {
         std::stringstream ss;
         ss << out_patch.memory.bank << out_patch.memory.slot << " PATCH";

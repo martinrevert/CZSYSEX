@@ -47,11 +47,20 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Main Win32 Entry Point
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpCmdLine*/, int /*nShowCmd*/) {
-    // Create application window
+    // Create application window sized to show full panel + envelope graph + MIDI status bar
+    RECT work_area{};
+    ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &work_area, 0);
+    int screen_w = work_area.right - work_area.left;
+    int screen_h = work_area.bottom - work_area.top;
+    int win_w = (screen_w > 1280) ? 1256 : (screen_w - 30);
+    int win_h = (screen_h > 920) ? 900 : (screen_h - 24);
+    int win_x = work_area.left + (screen_w - win_w) / 2;
+    int win_y = work_area.top + (screen_h - win_h) / 2;
+
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, hInstance, nullptr, nullptr, nullptr, nullptr, L"CZ3000SysExAppClass", nullptr };
     ::RegisterClassExW(&wc);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Casio CZ-3000 SysEx Librarian & Hardware Synthesizer Editor",
-                                WS_OVERLAPPEDWINDOW, 100, 100, 1200, 820, nullptr, nullptr, wc.hInstance, nullptr);
+                                WS_OVERLAPPEDWINDOW, win_x, win_y, win_w, win_h, nullptr, nullptr, wc.hInstance, nullptr);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd)) {
