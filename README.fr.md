@@ -42,8 +42,9 @@ Porté et enrichi à partir du projet Python `kasploosh` (`czsysexy` / `czcommon
    - **Mode Tutoriel (`[?] MODE TUTORIEL : ON/OFF`)** : Info-bulles au survol et fenêtre interactive **Guide de Distorsion de Phase** expliquant DCO, DCW, DCA, enveloppes à 8 étapes, ondes, modulation Ring/Noise et SysEx.
    - **Vue Manuel Officiel CZ-3000** : Manuel de référence intégré en 9 chapitres (`Vues → Manuel officiel CZ-3000`) avec tableau des 32 Presets, valeurs `INITIALIZE` et Tableau d'Implémentation MIDI dans les 8 langues.
 
-5. **Moteur MIDI Natif Basse Latence** :
+5. **Moteur MIDI Natif Basse Latence et Plugin VST3 (DAW / Ableton Live)** :
    - Basé sur l'API multimédia native de Windows (`winmm.dll`) avec sélection à chaud des ports MIDI In/Out et trames SysEx officielles Casio de 263/264 octets.
+   - **Plugin MIDI VST3 (`CZ3000SysEx.vst3`)** : Installable dans `C:\Program Files\Common Files\VST3` pour contrôler les 64 timbres depuis les pistes MIDI de votre DAW (Ableton Live, Cubase, Reaper), avec synchronisation de banque et transmission de Program Change.
 
 ---
 
@@ -60,7 +61,7 @@ Porté et enrichi à partir du projet Python `kasploosh` (`czsysexy` / `czcommon
 ```bat
 build.bat
 ```
-Génère `build\Release\CZ3000SysEx.exe` et `build\Release\test_sysex.exe`, puis exécute tous les tests unitaires.
+Génère `build\Release\CZ3000SysEx.exe`, `build\Release\CZ3000SysEx.vst3` et `build\Release\test_sysex.exe`, puis exécute tous les tests unitaires.
 
 ### Générer l'Installateur
 ```bat
@@ -81,6 +82,7 @@ CZSYSEX/
 │   ├── core/              # Modèle de données, maths, i18n, codec SysEx et cache banque
 │   ├── midi/              # Pilote MIDI Windows Multimedia (WinMM)
 │   ├── ui/                # LCD, Tutoriel, Manuel, Graphique d'Enveloppes, Librarian et Panneau
+│   ├── vst3/              # Processeur, vue et point d'entrée du plugin VST3
 │   └── main.cpp           # Fenêtre Win32, DirectX 11 et boucle principale
 ├── tests/
 │   └── test_sysex.cpp     # Tests unitaires SysEx, banque et cache

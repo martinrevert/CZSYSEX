@@ -57,6 +57,13 @@ public:
     bool is_presets_cached() const { return presets_cached_; }
     void set_presets_cached(bool cached) { presets_cached_ = cached; }
 
+    bool load_memory_cache(const std::string& filepath);
+    bool save_memory_cache(const std::string& filepath) const;
+
+    static std::string get_appdata_dir();
+    static std::string get_default_presets_cache_path();
+    static std::string get_default_memory_cache_path();
+
     static size_t get_index(char bank, int slot);
     static std::pair<char, int> get_bank_slot(size_t index);
 

@@ -75,6 +75,7 @@ LibrarianAction CzLibrarian::render(BankMode& active_mode, size_t& active_patch_
             copy.memory.slot = s;
             copy.midi_channel = midi_channel;
             bank_.patches[active_patch_index] = copy;
+            bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
             active_mode = BankMode::Memory;
             last_synced_mode_ = active_mode;
             action = LibrarianAction::PatchSelected;
@@ -175,6 +176,7 @@ LibrarianAction CzLibrarian::render(BankMode& active_mode, size_t& active_patch_
                 bank_.patches[active_patch_index].memory.location = "internal";
                 bank_.patches[active_patch_index].memory.bank = b;
                 bank_.patches[active_patch_index].memory.slot = s;
+                bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
                 action = LibrarianAction::PatchSelected;
                 status_msg_ = "Pasted to MEMORY " + std::string(1, b) + "-" + std::to_string(s);
             }
@@ -191,6 +193,7 @@ LibrarianAction CzLibrarian::render(BankMode& active_mode, size_t& active_patch_
             target.memory.bank = b;
             target.memory.slot = s;
             target.midi_channel = midi_channel;
+            bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
             action = LibrarianAction::RandomizeMemory;
             status_msg_ = "Randomized MEMORY " + std::string(1, b) + "-" + std::to_string(s);
         }
@@ -263,10 +266,12 @@ LibrarianAction CzLibrarian::render(BankMode& active_mode, size_t& active_patch_
             strncpy_s(edit_name, p.name.c_str(), sizeof(edit_name) - 1);
             if (ImGui::InputText("##Name", edit_name, sizeof(edit_name), ImGuiInputTextFlags_EnterReturnsTrue)) {
                 p.name = edit_name;
+                bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
                 ImGui::CloseCurrentPopup();
             }
             if (ImGui::Button(tr("lib.done"))) {
                 p.name = edit_name;
+                bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();

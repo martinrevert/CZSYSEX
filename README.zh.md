@@ -42,8 +42,9 @@
    - **教程模式（`[?] 教程模式: ON/OFF`）**：悬停提示与交互式 **相位失真指南** 窗口，详细讲解 DCO、DCW、DCA、8 段包络、波形、Ring/Noise 调制及 SysEx。
    - **CZ-3000 官方操作手册视图**：内置 9 大章节参考手册（`视图 → CZ-3000 官方操作手册`），包含 32 预设表、`INITIALIZE` 默认值与 8 种语言的 MIDI 实现表。
 
-5. **低延迟原生 MIDI 引擎**:
+5. **低延迟原生 MIDI 引擎与 VST3 插件 (DAW / Ableton Live)**:
    - 基于 Windows 原生多媒体 API（`winmm.dll`），支持热切换 MIDI In/Out 端口与官方 263/264 字节 Casio SysEx 传输。
+   - **VST3 MIDI 插件 (`CZ3000SysEx.vst3`)**: 可安装至 `C:\Program Files\Common Files\VST3`，在宿主软件（Ableton Live、Cubase、Reaper 等）的 MIDI 轨道中即时访问 64 个音色、同步音色库、发送程序变更并保存工程状态。
 
 ---
 
@@ -60,7 +61,7 @@
 ```bat
 build.bat
 ```
-生成 `build\Release\CZ3000SysEx.exe` 与 `build\Release\test_sysex.exe`，并运行所有核心单元测试。
+生成 `build\Release\CZ3000SysEx.exe`、`build\Release\CZ3000SysEx.vst3` 与 `build\Release\test_sysex.exe`，并运行所有核心单元测试。
 
 ### 生成安装程序
 ```bat
@@ -81,6 +82,7 @@ CZSYSEX/
 │   ├── core/              # 数据模型、数学运算、i18n、SysEx 编解码与音色库缓存
 │   ├── midi/              # Windows Multimedia (WinMM) MIDI 驱动
 │   ├── ui/                # LCD、教程、手册、包络图、音色库管理器与面板
+│   ├── vst3/              # VST3 插件处理器、视图与入口
 │   └── main.cpp           # Win32 窗口、DirectX 11 与主循环
 ├── tests/
 │   └── test_sysex.cpp     # SysEx、音色库与缓存单元测试

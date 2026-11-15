@@ -223,6 +223,20 @@ int main() {
     assert(!r33.success);
     std::cout << "  [PASS] Sequential 16+16 and 32x1 SysEx loading with capacity enforcement.\n";
 
+    // 10. Memory bank cache save/load roundtrip with custom names
+    CzBank mem_cache_bank;
+    mem_cache_bank.patches[0].name = "WARM ANALOG PAD";
+    mem_cache_bank.patches[7].name = "COSMIC PLUCK";
+    std::string test_mem_cache_file = "test_memory_cache.syx";
+    assert(mem_cache_bank.save_memory_cache(test_mem_cache_file));
+
+    CzBank reloaded_mem_bank;
+    assert(reloaded_mem_bank.load_memory_cache(test_mem_cache_file));
+    assert(reloaded_mem_bank.patches[0].name == "WARM ANALOG PAD");
+    assert(reloaded_mem_bank.patches[7].name == "COSMIC PLUCK");
+    remove(test_mem_cache_file.c_str());
+    std::cout << "  [PASS] Memory bank cache save/load roundtrip with custom names.\n";
+
     std::cout << "All core tests passed successfully!\n";
     return 0;
 }

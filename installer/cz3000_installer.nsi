@@ -10,6 +10,7 @@ Unicode True
 ; ---------------------------------------------------------------------------
 !define APP_NAME        "Casio CZ-3000 SysEx"
 !define APP_EXE         "CZ3000SysEx.exe"
+!define APP_VST3        "CZ3000SysEx.vst3"
 !ifndef APP_VERSION
   !define APP_VERSION   "1.0.0"
 !endif
@@ -84,6 +85,11 @@ Section "Aplicación Principal (Requerido)" SecMain
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
+Section "Plugin MIDI VST3 (DAW / Ableton)" SecVST3
+    SetOutPath "$COMMONFILES64\VST3"
+    File "..\build\Release\${APP_VST3}"
+SectionEnd
+
 Section "Accesos directos en el Menú Inicio" SecStartMenu
     CreateDirectory "$SMPROGRAMS\${APP_SM_FOLDER}"
     CreateShortcut "$SMPROGRAMS\${APP_SM_FOLDER}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
@@ -98,6 +104,7 @@ SectionEnd
 ; Section Descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "Instala el ejecutable nativo de Casio CZ-3000 SysEx y la documentación."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecVST3} "Instala el plugin MIDI VST3 en C:\Program Files\Common Files\VST3 para DAW (Ableton, Cubase, Reaper, etc.)."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecStartMenu} "Crea accesos directos en el Menú Inicio de Windows."
     !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "Crea un acceso directo en el Escritorio."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
@@ -106,6 +113,7 @@ SectionEnd
 ; Uninstaller
 ; ---------------------------------------------------------------------------
 Section "Uninstall"
+    Delete "$COMMONFILES64\VST3\${APP_VST3}"
     Delete "$INSTDIR\${APP_EXE}"
     Delete "$INSTDIR\README.md"
     Delete "$INSTDIR\LICENSE"

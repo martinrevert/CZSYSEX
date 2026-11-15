@@ -470,22 +470,19 @@ float DrawCz3000Model(ImDrawList *draw, ImVec2 pos, float h, ImU32 col) {
 
 CzPanel::CzPanel(CzBank &bank, CzMidiManager &midi)
     : bank_(bank), midi_(midi), librarian_(bank, midi) {
-  std::string cache_path = get_presets_cache_path();
+  std::string cache_path = CzBank::get_default_presets_cache_path();
   if (!cache_path.empty() && bank_.load_presets_cache(cache_path)) {
     librarian_.set_status_message("Caché de 32 Presets cargada.");
+  }
+  std::string mem_cache_path = CzBank::get_default_memory_cache_path();
+  if (!mem_cache_path.empty() && bank_.load_memory_cache(mem_cache_path)) {
+    librarian_.set_status_message("Caché de 32 Memorias cargada.");
   }
   select_patch(BankMode::Preset, 0, false);
 }
 
 std::string CzPanel::get_presets_cache_path() const {
-  char local_app_data[MAX_PATH] = {0};
-  DWORD len = GetEnvironmentVariableA("LOCALAPPDATA", local_app_data, MAX_PATH);
-  if (len == 0 || len >= MAX_PATH) {
-    return "presets_cache.syx";
-  }
-  std::string dir = std::string(local_app_data) + "\\CZ3000SysEx";
-  CreateDirectoryA(dir.c_str(), nullptr);
-  return dir + "\\presets_cache.syx";
+  return CzBank::get_default_presets_cache_path();
 }
 
 void CzPanel::select_patch(BankMode mode, size_t index, bool send_midi) {
@@ -644,6 +641,9 @@ void CzPanel::process_incoming_sysex() {
         rx_patch.name = bank_.patches[idx].name;
       }
       bank_.patches[idx] = rx_patch;
+      if (!batch_active_) {
+        bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
+      }
       if (active_bank_mode_ == BankMode::Memory && active_patch_index_ == idx) {
         original_patch_ = rx_patch;
         edit_patch_ = rx_patch;
@@ -709,6 +709,9 @@ void CzPanel::process_batch_dump() {
                                       std::to_string(batch_received_count_) +
                                       "/32 recibidos (caché guardada).");
       } else {
+        if (batch_received_count_ > 0) {
+          bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
+        }
         librarian_.set_status_message("Descarga de Memorias completada: " +
                                       std::to_string(batch_received_count_) +
                                       "/32 recibidas.");
@@ -787,6 +790,8 @@ void CzPanel::load_sysex_file_dialog() {
   // so clicking any loaded patch plays it on the connected CZ-3000.
   auto_fetch_on_select_ = false;
   live_audition_sync_ = true;
+
+    bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
 
     select_patch(BankMode::Memory, import_res.first_imported_index, true);
     send_edit_to_recall_buffer();
@@ -1379,6 +1384,7 @@ void CzPanel::load_sysex_file_dialog() {
       edit_patch_.memory.slot = s;
       edit_patch_.midi_channel = midi_channel_;
       bank_.patches[active_patch_index_] = edit_patch_;
+      bank_.save_memory_cache(CzBank::get_default_memory_cache_path());
       original_patch_ = edit_patch_;
       active_bank_mode_ = BankMode::Memory;
       compare_active_ = false;

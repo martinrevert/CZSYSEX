@@ -76,3 +76,44 @@ add_executable(test_sysex
     src/core/cz_sysex.cpp
     src/core/cz_bank.cpp
 )
+
+# VST3 Plugin Sources
+set(VST3_SOURCES
+    src/core/cz_types.h
+    src/core/cz_patch.h
+    src/core/cz_math.h
+    src/core/cz_math.cpp
+    src/core/cz_patch.cpp
+    src/core/cz_sysex.h
+    src/core/cz_sysex.cpp
+    src/core/cz_bank.h
+    src/core/cz_bank.cpp
+    src/core/cz_i18n.h
+    src/core/cz_i18n.cpp
+    src/midi/cz_midi.h
+    src/midi/cz_midi.cpp
+    src/ui/cz_lcd.h
+    src/ui/cz_lcd.cpp
+    src/vst3/vst3_abi.h
+    src/vst3/cz_vst_processor.h
+    src/vst3/cz_vst_processor.cpp
+    src/vst3/cz_vst_view.h
+    src/vst3/cz_vst_view.cpp
+    src/vst3/cz_vst_entry.cpp
+)
+
+# VST3 Shared Library (.vst3)
+add_library(CZ3000SysExVST3 SHARED ${VST3_SOURCES} ${IMGUI_SOURCES})
+set_target_properties(CZ3000SysExVST3 PROPERTIES
+    PREFIX ""
+    SUFFIX ".vst3"
+    OUTPUT_NAME "CZ3000SysEx"
+    LINK_FLAGS "/DEBUG /MAP"
+)
+
+target_link_libraries(CZ3000SysExVST3 PRIVATE
+    d3d11
+    dxgi
+    d3dcompiler
+    winmm
+)

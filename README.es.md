@@ -42,8 +42,9 @@ Portado y expandido a partir del proyecto Python `kasploosh` (`czsysexy` / `czco
    - **Modo Tutorial (`[?] MODO TUTORIAL: ON/OFF`)**: Tooltips al pasar el cursor y ventana interactiva de **Guía de Distorsión de Fase** explicando DCO, DCW, DCA, envolventes de 8 pasos, ondas, modulación Ring/Noise y SysEx.
    - **Vista del Manual Oficial del CZ-3000**: Manual de referencia integrado de 9 capítulos (`Vistas → Manual Oficial CZ-3000`) con tabla de los 32 Presets, valores de `INITIALIZE` y Tabla de Implementación MIDI en los 8 idiomas.
 
-5. **Motor MIDI Nativo de Baja Latencia**:
+5. **Motor MIDI Nativo de Baja Latencia y Plugin VST3 (DAW / Ableton Live)**:
    - Basado en la API multimedia nativa de Windows (`winmm.dll`) con selección en caliente de puertos MIDI In/Out y tramas SysEx oficiales Casio de 263/264 bytes.
+   - **Plugin MIDI VST3 (`CZ3000SysEx.vst3`)**: Instalable en `C:\Program Files\Common Files\VST3` para control inmediato de los 64 parches desde pistas MIDI de DAWs (Ableton Live, Cubase, Reaper) con sincronización automática de bancos, envío de cambios de programa y persistencia en el proyecto del DAW.
 
 ---
 
@@ -60,7 +61,7 @@ Portado y expandido a partir del proyecto Python `kasploosh` (`czsysexy` / `czco
 ```bat
 build.bat
 ```
-Genera `build\Release\CZ3000SysEx.exe` y `build\Release\test_sysex.exe`, y ejecuta todas las pruebas unitarias.
+Genera `build\Release\CZ3000SysEx.exe`, `build\Release\CZ3000SysEx.vst3` y `build\Release\test_sysex.exe`, y ejecuta todas las pruebas unitarias.
 
 ### Generar Instalador
 ```bat
@@ -81,6 +82,7 @@ CZSYSEX/
 │   ├── core/              # Modelo de datos, matemáticas, i18n, codec SysEx y caché de banco
 │   ├── midi/              # Driver MIDI Windows Multimedia (WinMM)
 │   ├── ui/                # LCD, Tutorial, Manual, Gráfico de Envolventes, Librarian y Panel
+│   ├── vst3/              # Procesador, vista e inicializador del plugin VST3
 │   └── main.cpp           # Ventana Win32, DirectX 11 y bucle principal
 ├── tests/
 │   └── test_sysex.cpp     # Pruebas unitarias de SysEx, banco y caché
