@@ -2,123 +2,96 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-Aplicación nativa moderna en **C++20** con interfaz gráfica acelerada por hardware (**DirectX 11 + Dear ImGui**) para el sintetizador **Casio CZ-3000** (compatible con toda la familia Casio CZ: CZ-101, CZ-1000, CZ-3000, CZ-5000 y CZ-1).
+🌐 **Language:** **English** · [Español](README.es.md) · [Italiano](README.it.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [简体中文](README.zh.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md)
 
-Portado y expandido a partir del proyecto Python `kasploosh` (`czsysexy` / `czcommon`).
+Modern native **C++20** desktop application with hardware-accelerated UI (**DirectX 11 + Dear ImGui**) for the **Casio CZ-3000** synthesizer (compatible with the Casio CZ family: CZ-101, CZ-1000, CZ-3000, CZ-5000, and CZ-1).
 
----
+Ported and expanded from the Python `kasploosh` (`czsysexy` / `czcommon`) project.
 
-## 🎹 Características Principales
-
-1. **Simulación Fidedigna del Hardware Casio CZ-3000**:
-   - Chasis con diseño retro en gris carbón y franjas características Casio (cian, azul oscuro y rojo).
-   - **Pantalla LCD 16×2 HD44780**: Matriz de puntos 5×7 con fósforo verde/oliva brillante, cursor parpadeante de hardware y modos de edición reales (Play, DCO, DCW, DCA, Vibrato, Detune, Line Select).
-   - **Botonera Táctil Casio con LEDs de Estado**:
-     - *Programmer*: `COMPARE`, `RECALL`, `INIT`, `WRITE`.
-     - *Selección de Parámetro*: `PLAY`, `LINE`, `VIB`, `DETUNE`, `DCO`, `DCW`, `DCA`.
-     - *Líneas de Voz*: Línea 1 y Línea 2.
-     - *Data Entry*: `UP`, `DN`, `< CUR`, `CUR >`.
-     - *Bancos y Números*: Bancos A, B, C, D y Ranuras 1 a 8 (32 memorias de hardware).
-   - **Teclado de Audición en Vivo de 6 Octavas Fijas**: Teclado de piano virtual interactivo continuo de 6 octavas completas (**C1** a **C7**, 73 teclas: 43 blancas y 30 negras) para audición inmediata vía MIDI en tiempo real.
-
-2. **Modo Tutorial Interactivo (PD Guide & Beginner Tooltips)**:
-   - Botón destacado en el encabezado: `[?] MODO TUTORIAL: ON / OFF`.
-   - Tooltips enriquecidos en español con explicaciones sin jerga técnica para principiantes:
-     - **DCO**: qué es y cómo controla el tono y la afinación.
-     - **DCW (El 'Filtro' del CZ)**: explicación de cómo sustituye al filtro analógico tradicional (VCF) mediante la deformación de fase de una onda senoidal.
-     - **DCA**: dinámica de volumen y envolvente de amplitud.
-     - **Envolventes de 8 Pasos**: por qué son más expresivas que el ADSR tradicional de 4 etapas, cómo funcionan los puntos de sostenido (`SUS`) y fin (`END`).
-     - **Estructura de Líneas**: `1+1'` (duplicación con chorus estéreo) y `1+2'` (capas de dos instrumentos diferentes).
-     - **Modulación en Anillo (Ring Mod) y Ruido (Noise)**.
-   - Ventana de **Guía Didáctica** accesible con un solo clic (`Guía`), con artículos explicativos por temas.
-
-3. **Gráfico Interactivo de Envolventes de 8 Pasos**:
-   - Visualización y edición en tiempo real de las curvas de DCO (azul cian), DCW (amarillo anaranjado) y DCA (verde lima).
-   - Marcadores visuales de `SUS` (Sustain) y `END` (Fin de ciclo).
-   - Sliders de Rate (Velocidad: 0-99) y Level (Nivel: 0-99) por cada paso (1 a 8).
-
-4. **Gestor de Banco Integrado (Librarian 32 Ranuras)**:
-   - Disposición optimizada en el panel superior a la derecha del LCD y controles.
-   - Selector de banco (A, B, C, D) con visualización de la lista de 8 sonidos.
-   - Renombrado rápido de sonidos con clic derecho.
-   - Enviar al Búfer de Edición del CZ (`Recall / Slot 0x60`) para audición instantánea.
-   - Guardar permanentemente en la memoria interna del sintetizador.
-   - Enviar el banco entero de 32 patches con espaciado temporal seguro de microcontrolador.
-   - Copiar y pegar parches entre ranuras.
-
-5. **Motor MIDI Nativo de Baja Latencia**:
-   - Utiliza la API multimedia nativa de Windows (`winmm.dll`).
-   - Detección automática y conmutación de puertos MIDI In y MIDI Out.
-   - Transmisión y recepción de tramas SysEx oficiales de Casio de 264 bytes.
+![Casio CZ-3000 SysEx Librarian & Hardware Synthesizer Editor](docs/screenshot.jpg)
 
 ---
 
-## 🛠️ Compilación y Ejecución
+## 🎹 Key Features
 
-### Requisitos:
-- Windows 10 u 11 (x64)
-- Visual Studio 2022 o Visual Studio Build Tools con soporte C++20
+1. **Authentic Casio CZ-3000 Hardware Simulation**:
+   - Retro charcoal-gray chassis with classic Casio accents (cyan, deep blue, and red).
+   - **16×2 HD44780 LCD Display**: 5×7 dot-matrix phosphor-green screen with hardware blinking cursor and real edit pages (`Play`, `Line`, `Vibrato`, `Detune`, `DCO`, `DCW`, `DCA`).
+   - **Tactile Casio Panel Buttons & Status LEDs**:
+     - *Programmer*: `COMPARE/RECALL`, `INIT`, `WRITE`.
+     - *Parameter Select*: `PLAY`, `LINE`, `VIB`, `DETUNE`, `DCO`, `DCW`, `DCA`.
+     - *Voice Lines*: Line 1 and Line 2.
+     - *Data Entry*: `UP`, `DOWN`, `< CUR`, `CUR >`.
+     - *Banks & Voices*: Preset & Memory Banks `A`–`D` and Slots `1`–`8` (64 voices total).
+   - **6-Octave Live Audition Keyboard**: Interactive virtual piano (**C1** to **C7**, 73 keys) for real-time MIDI auditioning.
+
+2. **Interactive 8-Step Envelope Graph**:
+   - Real-time visualization and editing of **DCO** (pitch, cyan), **DCW** (brightness/PD, amber), and **DCA** (volume, lime green) curves, individually or layered (`ALL`).
+   - Visual `SUS` (Sustain) and `END` markers.
+   - `Rate` (0–99) and `Level` (0–99) sliders for all 8 steps.
+
+3. **64-Voice Dual Bank Librarian (32 Presets + 32 User Memories)**:
+   - **PRESET BANK (32 Fixed)** & **MEMORY BANK (32 User)** tabs with `*MEMORY* A-1` hardware-accurate naming and right-click custom rename (preserved via CZ-1 296-byte `.syx` export/import).
+   - **Batch Download & Preset Cache**: Download all 32 Presets (cached locally so you don't need to re-fetch every session) or all 32 Memories in one click.
+   - **Auto-Fetch SysEx**: Automatically requests the selected slot from the hardware when clicking a Preset or Memory slot.
+   - **Synth Patch Randomizer (`Randomize`)**: Randomizes all synth parameters (`Line Select`, `Octave`, `Detune`, `Vibrato`, waveforms, modulation, and 8-stage DCO/DCW/DCA envelopes) in the current Memory slot and sends it live to the edit buffer (`0x60`).
+   - Send to Edit Buffer (`0x60`), Write to Synth Memory, Send Full 32-Patch Bank, Copy/Paste between slots, and load/save `.syx` files.
+
+4. **Multi-Language UI, Interactive PD Guide & Official Manual (8 Languages)**:
+   - Full live language switching (**English**, **Español**, **Italiano**, **Deutsch**, **日本語**, **简体中文**, **Português (Brasil)**, **Français**) with CJK font support.
+   - **Tutorial Mode (`[?] TUTORIAL MODE: ON/OFF`)**: Hover tooltips and an interactive **Phase Distortion Guide** window explaining DCO, DCW, DCA, 8-step envelopes, waveforms, ring/noise mod, and SysEx.
+   - **Official CZ-3000 Operation Manual View**: Built-in 9-chapter reference manual (`Views → CZ-3000 Operation Manual`) with the 32 Preset table, `INITIALIZE` defaults, and MIDI Implementation Chart in all 8 languages.
+
+5. **Low-Latency Native MIDI Engine**:
+   - Built on native Windows Multimedia API (`winmm.dll`) with hot-swappable MIDI In/Out port selection and 263/264-byte Casio SysEx framing.
+
+---
+
+## 🛠️ Build & Run
+
+### Prerequisites
+- Windows 10 or 11 (x64)
+- Visual Studio 2022 / Build Tools with C++20 support
 - CMake 3.20+
-- (Opcional) NSIS 3.x para generar el instalador ejecutable
+- Git with submodules (`git clone --recursive` or `git submodule update --init --recursive`)
+- *(Optional)* NSIS 3.x to package the Windows installer
 
-### Compilación rápida:
-En una consola de comandos o PowerShell en la raíz del proyecto:
+### Quick Build & Test
 ```bat
 build.bat
 ```
+Outputs `build\Release\CZ3000SysEx.exe` and `build\Release\test_sysex.exe`, then runs all core unit tests.
 
-El ejecutable optimizado se generará en:
-```
-build\Release\CZ3000SysEx.exe
-```
-
-### Generación del Instalador:
+### Build Installer
 ```bat
 build_installer.bat
 ```
-Genera `dist\CZ3000SysEx_Setup_v1.0.0.exe`.
 
 ---
 
-## 📁 Estructura del Código
+## 📁 Project Structure
 
 ```
 CZSYSEX/
-├── build/                 # Directorio de compilación
-├── dist/                  # Paquete instalador final (NSIS)
+├── docs/                  # Screenshots & documentation assets
 ├── external/
-│   └── imgui/             # Dear ImGui + Win32/DX11 backends
-├── installer/
-│   └── cz3000_installer.nsi # Script de empaquetado NSIS
+│   └── imgui/             # Dear ImGui submodule + Win32/DX11 backends
+├── installer/             # NSIS installer script
 ├── src/
-│   ├── core/              # Modelo de datos, matemáticas y codec SysEx
-│   │   ├── cz_types.h     # Estructuras de Parche, Envolvente, Líneas, etc.
-│   │   ├── cz_math.h/.cpp # Fórmulas de conversión no lineal (DCO/DCW/DCA)
-│   │   ├── cz_sysex.h/.cpp# Empaquetado de nibbles Casio y parser de .syx
-│   │   └── cz_bank.h/.cpp # Gestión de banco de 32 ranuras A1-D8
-│   ├── midi/
-│   │   └── cz_midi.h/.cpp # Driver MIDI Windows Multimedia (WinMM)
-│   ├── ui/
-│   │   ├── cz_lcd.h/.cpp  # Simulación de pantalla LCD HD44780 de 16x2
-│   │   ├── cz_tutorial.h/.cpp # Modo Tutorial y glosario interactivo PD
-│   │   ├── cz_envelope_graph.h/.cpp # Gráfico interactivo de 8 pasos
-│   │   ├── cz_librarian.h/.cpp      # Gestor de 32 patches
-│   │   └── cz_panel.h/.cpp          # Chasis y controles del CZ-3000
-│   └── main.cpp           # Ventana Win32, inicialización DirectX 11 y bucle principal
+│   ├── core/              # Data model, math, i18n, SysEx codec & bank cache
+│   ├── midi/              # Windows Multimedia (WinMM) MIDI driver
+│   ├── ui/                # LCD, Tutorial, Manual, Envelope Graph, Librarian & Panel
+│   └── main.cpp           # Win32 window, DirectX 11 & main loop
 ├── tests/
-│   └── test_sysex.cpp     # Pruebas unitarias de ida y vuelta SysEx
+│   └── test_sysex.cpp     # Core SysEx, bank & cache unit tests
+├── AGENTS.md              # Contributor & CI verification guidelines
 ├── CMakeLists.txt
 ├── build.bat
-├── build_installer.bat
-├── LICENSE
-└── README.md
+└── build_installer.bat
 ```
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está distribuido bajo los términos de la **GNU General Public License v3.0 (GPLv3)**.
-
-Consulta el archivo [LICENSE](LICENSE) para conocer todos los términos y condiciones de copia, distribución y modificación.
-
+Distributed under the **GNU General Public License v3.0 (GPLv3)**. See [LICENSE](LICENSE) for details.
