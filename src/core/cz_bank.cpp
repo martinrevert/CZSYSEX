@@ -110,6 +110,92 @@ void CzBank::reslot_all() {
     }
 }
 
+bool CzBank::is_slot_free(size_t index) const {
+    if (index >= BANK_SIZE) {
+        return false;
+    }
+    const std::string& name = patches[index].name;
+    return name.rfind("*MEMORY*", 0) == 0 || name.rfind("[EMPTY]", 0) == 0;
+}
+
+size_t CzBank::count_free_slots() const {
+    size_t free_count = 0;
+    for (size_t i = 0; i < BANK_SIZE; ++i) {
+        if (is_slot_free(i)) {
+            ++free_count;
+        }
+    }
+    return free_count;
+}
+
+SyxImportResult CzBank::import_syx_patches(const std::vector<CzPatch>& loaded,
+                                           const std::string& file_stem,
+                                           size_t preferred_start_index) {
+    SyxImportResult result;
+    std::vector<CzPatch> non_empty;
+    non_empty.reserve(loaded.size());
+
+    for (const auto& p : loaded) {
+        if (p.name.rfind("[EMPTY]", 0) == 0) {
+            ++result.skipped_empty_count;
+        } else {
+            non_empty.push_back(p);
+        }
+    }
+
+    result.free_slots_before = count_free_slots();
+    result.free_slots_after = result.free_slots_before;
+
+    if (non_empty.empty()) {
+        result.error_message = "El archivo .syx solo contiene parches vacíos [EMPTY].";
+        return result;
+    }
+
+    if (non_empty.size() > result.free_slots_before) {
+        if (result.free_slots_before == 0) {
+            result.error_message =
+                "Memoria de Usuario llena (32/32 ocupadas). No hay espacio para cargar " +
+                std::to_string(non_empty.size()) +
+                " parche(s). Usa File -> Reset Bank para liberar memoria.";
+        } else {
+            result.error_message =
+                "Espacio insuficiente en Memoria de Usuario: el archivo tiene " +
+                std::to_string(non_empty.size()) + " parche(s) y solo quedan " +
+                std::to_string(result.free_slots_before) + " espacio(s) libre(s) de 32.";
+        }
+        return result;
+    }
+
+    size_t start = (preferred_start_index < BANK_SIZE) ? preferred_start_index : 0;
+    std::vector<size_t> target_indices;
+    target_indices.reserve(non_empty.size());
+
+    for (size_t offset = 0; offset < BANK_SIZE && target_indices.size() < non_empty.size(); ++offset) {
+        size_t idx = (start + offset) % BANK_SIZE;
+        if (is_slot_free(idx)) {
+            target_indices.push_back(idx);
+        }
+    }
+
+    for (size_t i = 0; i < non_empty.size(); ++i) {
+        size_t target_idx = target_indices[i];
+        auto [b, s] = get_bank_slot(target_idx);
+        patches[target_idx] = non_empty[i];
+        patches[target_idx].memory.location = "internal";
+        patches[target_idx].memory.bank = b;
+        patches[target_idx].memory.slot = s;
+        if (patches[target_idx].simple_sysex && !file_stem.empty()) {
+            patches[target_idx].name = file_stem + " " + std::string(1, b) + "-" + std::to_string(s);
+        }
+    }
+
+    result.success = true;
+    result.imported_count = non_empty.size();
+    result.first_imported_index = target_indices.front();
+    result.free_slots_after = count_free_slots();
+    return result;
+}
+
 bool CzBank::load_presets_cache(const std::string& filepath) {
     std::vector<CzPatch> loaded;
     std::string err;

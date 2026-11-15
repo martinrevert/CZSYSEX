@@ -186,6 +186,43 @@ int main() {
     assert(decoded_empty.name == "[EMPTY]");
     std::cout << "  [PASS] Blank/all-zero SysEx slot [EMPTY] detection.\n";
 
+    // 9. Sequential SysEx bank/patch loading and user-memory capacity enforcement
+    CzBank seq_bank;
+    assert(seq_bank.count_free_slots() == 32);
+
+    std::vector<CzPatch> bank16_a;
+    for (int i = 0; i < 16; ++i) {
+        CzPatch p = CzPatch::create_default_patch('A', 1, "PATCH");
+        p.simple_sysex = true;
+        bank16_a.push_back(p);
+    }
+    auto res1 = seq_bank.import_syx_patches(bank16_a, "1SOUNDS", 0);
+    assert(res1.success && res1.imported_count == 16 && res1.first_imported_index == 0 && res1.free_slots_after == 16);
+    assert(seq_bank.patches[0].name == "1SOUNDS A-1");
+    assert(seq_bank.patches[15].name == "1SOUNDS B-8");
+
+    // Immediately load a second 16-patch bank -> should automatically fill C-1..D-8 (16..31)
+    auto res2 = seq_bank.import_syx_patches(bank16_a, "2SOUNDS", res1.first_imported_index);
+    assert(res2.success && res2.imported_count == 16 && res2.first_imported_index == 16 && res2.free_slots_after == 0);
+    assert(seq_bank.patches[16].name == "2SOUNDS C-1");
+    assert(seq_bank.patches[31].name == "2SOUNDS D-8");
+
+    // Attempting to load 1 more patch when all 32 slots are occupied must be denied
+    std::vector<CzPatch> single_patch = { bank16_a[0] };
+    auto res_denied = seq_bank.import_syx_patches(single_patch, "EXTRA", 0);
+    assert(!res_denied.success && res_denied.free_slots_before == 0);
+
+    // Loading 32 single patches one by one fills all 32 slots, 33rd is denied
+    CzBank single_bank;
+    for (int i = 0; i < 32; ++i) {
+        auto r = single_bank.import_syx_patches(single_patch, "SOLO", static_cast<size_t>(i > 0 ? i - 1 : 0));
+        assert(r.success && r.imported_count == 1 && r.first_imported_index == static_cast<size_t>(i));
+    }
+    assert(single_bank.count_free_slots() == 0);
+    auto r33 = single_bank.import_syx_patches(single_patch, "SOLO", 31);
+    assert(!r33.success);
+    std::cout << "  [PASS] Sequential 16+16 and 32x1 SysEx loading with capacity enforcement.\n";
+
     std::cout << "All core tests passed successfully!\n";
     return 0;
 }

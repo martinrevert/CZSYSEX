@@ -12,6 +12,16 @@ enum class BankMode {
     Memory = 1  // 32 user RAM voices (MIDI PC 32-63, SysEx 0x20-0x3F)
 };
 
+struct SyxImportResult {
+    bool success = false;
+    size_t imported_count = 0;
+    size_t skipped_empty_count = 0;
+    size_t free_slots_before = 0;
+    size_t free_slots_after = 0;
+    size_t first_imported_index = 0;
+    std::string error_message;
+};
+
 class CzBank {
 public:
     static constexpr size_t BANK_SIZE = 32; // 4 banks * 8 slots for CZ-3000
@@ -35,6 +45,12 @@ public:
 
     void initialize_factory_presets();
     void reslot_all();
+
+    bool is_slot_free(size_t index) const;
+    size_t count_free_slots() const;
+    SyxImportResult import_syx_patches(const std::vector<CzPatch>& loaded,
+                                       const std::string& file_stem = "",
+                                       size_t preferred_start_index = 0);
 
     bool load_presets_cache(const std::string& filepath);
     bool save_presets_cache(const std::string& filepath) const;
